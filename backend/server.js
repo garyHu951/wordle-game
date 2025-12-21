@@ -364,6 +364,20 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Root path for Render health check
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Wordle Game Backend API',
+        status: 'running',
+        version: '1.0.0',
+        endpoints: {
+            health: '/api/health',
+            words: '/api/words/:length',
+            game: '/api/game/new'
+        }
+    });
+});
+
 // 新增：單字表API
 app.get('/api/words/:length', (req, res) => {
     try {
