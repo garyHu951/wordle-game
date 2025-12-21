@@ -25,23 +25,23 @@ class AudioManager {
     // Sound file mappings (Chinese filenames to English function names)
     this.soundFiles = {
       // Button and UI sounds
-      buttonClick: '/sounds/按鍵音效.mp3',
-      buttonCancel: '/sounds/取消按鍵音效.mp3',
-      skipButton: '/sounds/skip按鍵音效.mp3',
+      buttonClick: './sounds/按鍵音效.mp3',
+      buttonCancel: './sounds/取消按鍵音效.mp3',
+      skipButton: './sounds/skip按鍵音效.mp3',
       
       // Cell color effects
-      correctCell: '/sounds/綠色方塊音效.mp3',    // Green cell (correct)
-      presentCell: '/sounds/黃色方塊音效.mp3',    // Yellow cell (present)
-      absentCell: '/sounds/灰色方塊音效.mp3',     // Gray cell (absent)
+      correctCell: './sounds/綠色方塊音效.mp3',    // Green cell (correct)
+      presentCell: './sounds/黃色方塊音效.mp3',    // Yellow cell (present)
+      absentCell: './sounds/灰色方塊音效.mp3',     // Gray cell (absent)
       
       // Game events
-      scoreIncrease: '/sounds/分數+5的音效.mp3',  // +5 points sound
-      battleStart: '/sounds/對戰開始的音效.mp3',   // Battle start sound
+      scoreIncrease: './sounds/分數+5的音效.mp3',  // +5 points sound
+      battleStart: './sounds/對戰開始的音效.mp3',   // Battle start sound
       
       // Background music
-      homeMusic: '/sounds/主頁面_等待頁面加入或創建房間頁面_背景音樂.mp3',
-      singlePlayerMusic: '/sounds/單人遊玩頁面_背景音樂.mp3',
-      battleMusic: '/sounds/對戰頁面_背景音樂.mp3'
+      homeMusic: './sounds/主頁面_等待頁面加入或創建房間頁面_背景音樂.mp3',
+      singlePlayerMusic: './sounds/單人遊玩頁面_背景音樂.mp3',
+      battleMusic: './sounds/對戰頁面_背景音樂.mp3'
     };
     
     this.preloadSounds();
