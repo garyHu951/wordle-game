@@ -983,7 +983,7 @@ const HomePage = ({ onSelectMode }) => {
               </div>
               <div>
                 <h3 className="text-sm font-bold mb-1">SINGLE PLAYER</h3>
-                <p className="text-xs text-blue-200">CLASSIC MODE (4-7 LETTERS)</p>
+                <p className="text-xs text-blue-200">CLASSIC MODE<br />(4-7 LETTERS)</p>
               </div>
             </button>
             
