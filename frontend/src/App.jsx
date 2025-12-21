@@ -1215,6 +1215,8 @@ const CompetitiveMode = ({ onBack }) => {
   const [guessHistory, setGuessHistory] = useState([]); // All guess history
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
+  const [currentAnswer, setCurrentAnswer] = useState(''); // Current round answer
+  const [showAnswer, setShowAnswer] = useState(false); // Show answer toggle
 
   useEffect(() => {
     // Create socket connection function
@@ -1260,6 +1262,8 @@ const CompetitiveMode = ({ onBack }) => {
         setShowResultModal(false);
         setAnimatingRow(-1);
         setAnimatedCells(new Set()); // Reset animation tracking
+        setShowAnswer(false); // Reset answer display
+        setCurrentAnswer(''); // Clear current answer
       });
 
 
@@ -1422,6 +1426,11 @@ const CompetitiveMode = ({ onBack }) => {
           setErrorMessage(msg);
       });
 
+      newSocket.on('current_answer', ({ answer }) => {
+        setCurrentAnswer(answer);
+        setShowAnswer(true);
+      });
+
       return newSocket;
     };
 
@@ -1491,6 +1500,8 @@ const CompetitiveMode = ({ onBack }) => {
     setShowResultModal(false);
     setResultModalType('');
     setAnimatedCells(new Set());
+    setShowAnswer(false); // Reset answer display
+    setCurrentAnswer(''); // Clear current answer
     
     // Re-establish socket connection
     const newSocket = io(SOCKET_URL);
@@ -1532,6 +1543,8 @@ const CompetitiveMode = ({ onBack }) => {
       setErrorMessage('');
       setCanSkip(true);
       setAnimatedCells(new Set()); // Reset animation tracking
+      setShowAnswer(false); // Reset answer display
+      setCurrentAnswer(''); // Clear current answer
     });
 
     newSocket.on('player_left', ({ message }) => {
@@ -1690,6 +1703,11 @@ const CompetitiveMode = ({ onBack }) => {
     newSocket.on('error_message', (msg) => {
       setErrorMessage(msg);
     });
+
+    newSocket.on('current_answer', ({ answer }) => {
+      setCurrentAnswer(answer);
+      setShowAnswer(true);
+    });
   };
 
   const togglePause = () => {
@@ -1701,6 +1719,19 @@ const CompetitiveMode = ({ onBack }) => {
       playSound('skipButton');
       socket.emit('skip_round', { roomCode });
     }
+  };
+
+  const getAnswer = () => {
+    if (socket && roomCode) {
+      playSound('buttonClick');
+      socket.emit('get_current_answer', { roomCode });
+    }
+  };
+
+  const hideAnswer = () => {
+    playSound('buttonCancel');
+    setShowAnswer(false);
+    setCurrentAnswer('');
   };
 
   const handleKeyPress = (key) => {
@@ -1949,6 +1980,13 @@ const CompetitiveMode = ({ onBack }) => {
                         SKIP ROUND
                       </button>
                     )}
+                    <button 
+                      onClick={showAnswer ? hideAnswer : getAnswer}
+                      className={`pixel-button px-4 py-2 ${showAnswer ? 'bg-orange-600 hover:bg-orange-500' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
+                      style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                    >
+                      {showAnswer ? 'HIDE ANSWER' : 'SHOW ANSWER'}
+                    </button>
                   </div>
               </div>
 
@@ -1982,6 +2020,28 @@ const CompetitiveMode = ({ onBack }) => {
                   errorMessage.includes('won') || errorMessage.includes('OPPONENT WON') ? 'bg-green-600 text-white animate-success-bounce' : 'bg-red-600 text-white animate-error-shake'
                 }`} style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
                   {errorMessage}
+                </div>
+              )}
+
+              {/* Answer display area */}
+              {showAnswer && currentAnswer && (
+                <div className="mb-4 p-4 bg-purple-900 pixel-border text-center animate-modal-slide-in" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+                  <div className="text-xs text-purple-300 mb-2 font-bold no-select">CURRENT ANSWER</div>
+                  <div className="flex justify-center gap-1">
+                    {currentAnswer.split('').map((letter, index) => (
+                      <div 
+                        key={index}
+                        className="w-10 h-10 bg-purple-600 text-white pixel-border flex items-center justify-center text-lg font-bold animate-bounce-in no-select"
+                        style={{ 
+                          boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                          animationDelay: `${index * 0.1}s`
+                        }}
+                      >
+                        {letter}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs text-purple-300 mt-2 no-select">This is your target word for this round</div>
                 </div>
               )}
 

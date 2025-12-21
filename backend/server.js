@@ -294,7 +294,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 4. 離開房間
+  // 4. 獲取當前答案
+  socket.on('get_current_answer', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (room && room.players[socket.id] && room.currentWords[socket.id]) {
+      socket.emit('current_answer', {
+        answer: room.currentWords[socket.id]
+      });
+    } else {
+      socket.emit('error_message', 'Cannot get answer: Room not found or not in game');
+    }
+  });
+
+  // 5. 離開房間
   socket.on('leave_room', ({ roomCode }) => {
     const room = rooms[roomCode];
     if (room && room.players[socket.id]) {
