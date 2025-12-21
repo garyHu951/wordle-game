@@ -11,11 +11,6 @@ const SOCKET_URL = import.meta.env.PROD
   ? 'https://wordle-game-backend-v2.onrender.com'
   : 'http://localhost:3001';
 
-// Debug: Log API URL
-console.log('Environment:', import.meta.env.PROD ? 'PRODUCTION' : 'DEVELOPMENT');
-console.log('API_URL:', API_URL);
-console.log('SOCKET_URL:', SOCKET_URL);
-
 // ==========================================
 // Audio Management System - Pixel Style
 // ==========================================
@@ -472,30 +467,21 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
     
     setLoading(true);
     try {
-      console.log(`Fetching words for length ${length} from:`, `${API_URL}/words/${length}`);
       const response = await fetch(`${API_URL}/words/${length}`);
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('Response data:', data);
       
       if (data.success) {
         setWords(prev => ({ ...prev, [length]: data.words }));
-        console.log(`Successfully loaded ${data.words.length} words for length ${length}`);
       } else {
         console.error('API returned success: false', data);
       }
     } catch (error) {
       console.error('Failed to fetch words:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        apiUrl: `${API_URL}/words/${length}`
-      });
     }
     setLoading(false);
   };
@@ -727,37 +713,6 @@ const HomePage = ({ onSelectMode }) => {
               <div>
                 <h3 className="text-sm font-bold mb-1">WORD LIST</h3>
                 <p className="text-xs text-green-200">VIEW AVAILABLE WORDS</p>
-              </div>
-            </button>
-            
-            {/* API Test Button */}
-            <button 
-              onClick={() => {
-                playSound('buttonClick');
-                console.log('Testing API connection...');
-                fetch(`${API_URL}/health`)
-                  .then(res => {
-                    console.log('Health check status:', res.status);
-                    return res.json();
-                  })
-                  .then(data => {
-                    console.log('Health check data:', data);
-                    alert(`API Health: ${data.status || 'OK'}`);
-                  })
-                  .catch(err => {
-                    console.error('API Health check failed:', err);
-                    alert(`API Error: ${err.message}`);
-                  });
-              }}
-              className="pixel-button w-full p-4 bg-purple-600 hover:bg-purple-500 text-white pixel-border transition-smooth flex items-center gap-4 text-left text-xs hover-lift animate-slide-up animate-delay-400"
-              style={{ boxShadow: '4px 4px 0px rgba(0,0,0,0.6)' }}
-            >
-              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-purple-900 transition-smooth hover-scale">
-                <Wifi size={16} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold mb-1">API TEST</h3>
-                <p className="text-xs text-purple-200">CHECK CONNECTION</p>
               </div>
             </button>
           </div>
