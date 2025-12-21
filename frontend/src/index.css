@@ -40,37 +40,6 @@
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><rect x="0" y="0" width="2" height="2" fill="white"/><rect x="0" y="2" width="2" height="2" fill="white"/><rect x="0" y="4" width="2" height="2" fill="white"/><rect x="0" y="6" width="2" height="2" fill="white"/><rect x="0" y="8" width="2" height="2" fill="white"/><rect x="0" y="10" width="2" height="2" fill="white"/><rect x="2" y="2" width="2" height="2" fill="white"/><rect x="2" y="4" width="2" height="2" fill="white"/><rect x="2" y="6" width="2" height="2" fill="white"/><rect x="2" y="8" width="2" height="2" fill="white"/><rect x="2" y="10" width="2" height="2" fill="white"/><rect x="4" y="4" width="2" height="2" fill="white"/><rect x="4" y="6" width="2" height="2" fill="white"/><rect x="4" y="8" width="2" height="2" fill="white"/><rect x="4" y="10" width="2" height="2" fill="white"/><rect x="6" y="6" width="2" height="2" fill="white"/><rect x="6" y="8" width="2" height="2" fill="white"/><rect x="6" y="10" width="2" height="2" fill="white"/><rect x="8" y="8" width="2" height="2" fill="white"/><rect x="8" y="10" width="2" height="2" fill="white"/><rect x="10" y="10" width="2" height="2" fill="white"/><rect x="0" y="0" width="2" height="2" fill="black" opacity="0.3"/><rect x="2" y="0" width="2" height="2" fill="black" opacity="0.3"/></svg>'), auto;
 }
 
-/* Volume slider styling */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 8px;
-  border-radius: 0;
-  outline: none;
-  cursor: pointer;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #10b981;
-  cursor: pointer;
-  border-radius: 0;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.6);
-}
-
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: #10b981;
-  cursor: pointer;
-  border-radius: 0;
-  border: none;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.6);
-}
-
 /* 按鈕和可點擊元素的游標 */
 button, a, input[type="button"], input[type="submit"], [role="button"] {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><rect x="6" y="2" width="2" height="2" fill="yellow"/><rect x="8" y="2" width="2" height="2" fill="yellow"/><rect x="4" y="4" width="2" height="2" fill="yellow"/><rect x="6" y="4" width="2" height="2" fill="yellow"/><rect x="8" y="4" width="2" height="2" fill="yellow"/><rect x="10" y="4" width="2" height="2" fill="yellow"/><rect x="2" y="6" width="2" height="2" fill="yellow"/><rect x="4" y="6" width="2" height="2" fill="yellow"/><rect x="6" y="6" width="2" height="2" fill="yellow"/><rect x="8" y="6" width="2" height="2" fill="yellow"/><rect x="10" y="6" width="2" height="2" fill="yellow"/><rect x="12" y="6" width="2" height="2" fill="yellow"/><rect x="2" y="8" width="2" height="2" fill="yellow"/><rect x="4" y="8" width="2" height="2" fill="yellow"/><rect x="6" y="8" width="2" height="2" fill="yellow"/><rect x="8" y="8" width="2" height="2" fill="yellow"/><rect x="10" y="8" width="2" height="2" fill="yellow"/><rect x="12" y="8" width="2" height="2" fill="yellow"/><rect x="4" y="10" width="2" height="2" fill="yellow"/><rect x="6" y="10" width="2" height="2" fill="yellow"/><rect x="8" y="10" width="2" height="2" fill="yellow"/><rect x="10" y="10" width="2" height="2" fill="yellow"/><rect x="6" y="12" width="2" height="2" fill="yellow"/><rect x="8" y="12" width="2" height="2" fill="yellow"/></svg>'), pointer;

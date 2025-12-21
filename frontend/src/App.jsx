@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RotateCcw, Wifi, WifiOff, User, Swords, ArrowLeft, Trophy, Info, Clock, Users, Hash, Volume2, VolumeX } from 'lucide-react';
+import { RotateCcw, Wifi, WifiOff, User, Swords, ArrowLeft, Trophy, Info, Clock, Users, Hash } from 'lucide-react';
 import io from 'socket.io-client';
 
 // Environment-based API URLs
@@ -300,49 +300,7 @@ const useAudio = () => {
   };
 };
 
-// Audio Control Component - Pixel Style
-const AudioControls = ({ currentPage = 'home' }) => {
-  const { isMuted, volume, musicPlaying, toggleMute, setVolume } = useAudio();
-  
-  return (
-    <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-gray-900 p-2 pixel-border animate-slide-in-top" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
-      <button
-        onClick={toggleMute}
-        className="pixel-button p-2 bg-gray-700 hover:bg-gray-600 text-white pixel-border transition-smooth hover-scale cursor-pointer"
-        style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
-        title={isMuted ? 'Unmute' : 'Mute'}
-      >
-        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-      </button>
-      
-      {!isMuted && (
-        <div className="flex items-center gap-2 animate-slide-in-right">
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-16 h-2 bg-gray-700 pixel-border cursor-pointer"
-            style={{ 
-              appearance: 'none',
-              background: `linear-gradient(to right, #10b981 0%, #10b981 ${volume * 100}%, #374151 ${volume * 100}%, #374151 100%)`
-            }}
-          />
-          <span className="text-xs text-green-400 font-bold min-w-[2rem] no-select">
-            {Math.round(volume * 100)}%
-          </span>
-        </div>
-      )}
-      
-      {/* Music playing indicator */}
-      {musicPlaying && (
-        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Music Playing"></div>
-      )}
-    </div>
-  );
-};
+
 
 // Add pixel-style CSS
 const customStyles = `
@@ -646,8 +604,6 @@ const HomePage = ({ onSelectMode }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fade-in">
-      {/* Audio Controls */}
-      <AudioControls currentPage="home" />
       
       {/* Pixel-style background dots */}
       <div className="absolute inset-0 opacity-10">
@@ -1132,8 +1088,6 @@ const SinglePlayerGame = ({ onBack }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center py-8 px-4 animate-slide-in-right">
-      {/* Audio Controls */}
-      <AudioControls currentPage="single" />
       
       <div className="max-w-6xl w-full flex flex-col lg:flex-row gap-6 items-start animate-bounce-in">
         {/* Main game area */}
@@ -1792,8 +1746,6 @@ const CompetitiveMode = ({ onBack }) => {
   if (viewState === 'lobby') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 animate-fade-in">
-        {/* Audio Controls */}
-        <AudioControls currentPage="home" />
         
         <div className="max-w-md w-full bg-gray-900 p-8 pixel-border text-white relative animate-bounce-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
           <button onClick={() => { playSound('buttonCancel'); playBackgroundMusic('homeMusic'); onBack(); }} className="pixel-button absolute top-4 left-4 p-2 bg-red-600 hover:bg-red-500 pixel-border transition-smooth hover-scale cursor-pointer" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
@@ -1974,8 +1926,6 @@ const CompetitiveMode = ({ onBack }) => {
 
       return (
         <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in">
-          {/* Audio Controls */}
-          <AudioControls currentPage="battle" />
           
           <div className="flex gap-6 w-full max-w-6xl">
             {/* Center: Main game area */}
