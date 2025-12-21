@@ -369,7 +369,9 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'Wordle Game Backend API',
         status: 'running',
-        version: '1.0.0',
+        version: '1.0.1', // Updated version to trigger deployment
+        timestamp: new Date().toISOString(),
+        cors: 'Updated for GitHub Pages',
         endpoints: {
             health: '/api/health',
             words: '/api/words/:length',
