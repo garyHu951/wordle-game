@@ -1,13 +1,352 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RotateCcw, Wifi, WifiOff, User, Swords, ArrowLeft, Trophy, Info, Clock, Users, Hash } from 'lucide-react';
+import { RotateCcw, Wifi, WifiOff, User, Swords, ArrowLeft, Trophy, Info, Clock, Users, Hash, Volume2, VolumeX } from 'lucide-react';
 import io from 'socket.io-client';
 
-const API_URL = 'http://localhost:3001/api';
-const SOCKET_URL = 'http://localhost:3001';
+// Environment-based API URLs
+const API_URL = import.meta.env.PROD 
+  ? 'https://wordle-game-57ta.onrender.com/api'
+  : 'http://localhost:3001/api';
 
-// 添加像素風格CSS
+const SOCKET_URL = import.meta.env.PROD 
+  ? 'https://wordle-game-57ta.onrender.com'
+  : 'http://localhost:3001';
+
+// ==========================================
+// Audio Management System - Pixel Style
+// ==========================================
+class AudioManager {
+  constructor() {
+    this.sounds = {};
+    this.isMuted = false;
+    this.volume = 0.7;
+    this.backgroundMusic = null;
+    this.currentBgMusic = null;
+    
+    // Sound file mappings (Chinese filenames to English function names)
+    this.soundFiles = {
+      // Button and UI sounds
+      buttonClick: '/sounds/按鍵音效.mp3',
+      buttonCancel: '/sounds/取消按鍵音效.mp3',
+      skipButton: '/sounds/skip按鍵音效.mp3',
+      
+      // Cell color effects
+      correctCell: '/sounds/綠色方塊音效.mp3',    // Green cell (correct)
+      presentCell: '/sounds/黃色方塊音效.mp3',    // Yellow cell (present)
+      absentCell: '/sounds/灰色方塊音效.mp3',     // Gray cell (absent)
+      
+      // Game events
+      scoreIncrease: '/sounds/分數+5的音效.mp3',  // +5 points sound
+      battleStart: '/sounds/對戰開始的音效.mp3',   // Battle start sound
+      
+      // Background music
+      homeMusic: '/sounds/主頁面_等待頁面加入或創建房間頁面_背景音樂.mp3',
+      singlePlayerMusic: '/sounds/單人遊玩頁面_背景音樂.mp3',
+      battleMusic: '/sounds/對戰頁面_背景音樂.mp3'
+    };
+    
+    this.preloadSounds();
+  }
+  
+  preloadSounds() {
+    // Preload all sound effects
+    Object.entries(this.soundFiles).forEach(([key, path]) => {
+      if (key !== 'homeMusic' && key !== 'singlePlayerMusic' && key !== 'battleMusic') {
+        const audio = new Audio(path);
+        audio.preload = 'auto';
+        audio.volume = this.volume;
+        this.sounds[key] = audio;
+      }
+    });
+    
+    // Preload background music separately
+    this.sounds.homeMusic = new Audio(this.soundFiles.homeMusic);
+    this.sounds.homeMusic.loop = true;
+    this.sounds.homeMusic.volume = this.volume * 0.3; // Lower volume for background
+    
+    this.sounds.singlePlayerMusic = new Audio(this.soundFiles.singlePlayerMusic);
+    this.sounds.singlePlayerMusic.loop = true;
+    this.sounds.singlePlayerMusic.volume = this.volume * 0.3;
+    
+    this.sounds.battleMusic = new Audio(this.soundFiles.battleMusic);
+    this.sounds.battleMusic.loop = true;
+    this.sounds.battleMusic.volume = this.volume * 0.3;
+  }
+  
+  play(soundName, options = {}) {
+    if (this.isMuted) return;
+    
+    const sound = this.sounds[soundName];
+    if (!sound) {
+      console.warn(`Sound '${soundName}' not found`);
+      return;
+    }
+    
+    try {
+      // Reset sound to beginning
+      sound.currentTime = 0;
+      
+      // Apply volume
+      const volume = options.volume !== undefined ? options.volume : this.volume;
+      sound.volume = Math.max(0, Math.min(1, volume));
+      
+      // Play sound
+      const playPromise = sound.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn(`Failed to play sound '${soundName}':`, error);
+        });
+      }
+    } catch (error) {
+      console.warn(`Error playing sound '${soundName}':`, error);
+    }
+  }
+  
+  playBackgroundMusic(musicName, forceRestart = false) {
+    if (this.isMuted) return;
+    
+    // If the same music is already playing and we don't want to force restart, do nothing
+    if (this.currentBgMusic && !this.currentBgMusic.paused && !this.currentBgMusic.ended) {
+      // Check if it's the same music file
+      const currentSrc = this.currentBgMusic.src;
+      const targetSrc = this.soundFiles[musicName];
+      if (currentSrc.includes(targetSrc.split('/').pop()) && !forceRestart) {
+        console.log(`Background music '${musicName}' is already playing, not restarting`);
+        return;
+      }
+    }
+    
+    // Stop current background music only if it's different
+    if (this.currentBgMusic && this.currentBgMusic.src && 
+        !this.currentBgMusic.src.includes(this.soundFiles[musicName].split('/').pop())) {
+      this.stopBackgroundMusic();
+    }
+    
+    const music = this.sounds[musicName];
+    if (!music) {
+      console.warn(`Background music '${musicName}' not found`);
+      return;
+    }
+    
+    try {
+      if (forceRestart || !this.currentBgMusic || this.currentBgMusic.paused || this.currentBgMusic.ended) {
+        if (forceRestart) {
+          music.currentTime = 0;
+        }
+        music.volume = this.volume * 0.3; // Lower volume for background
+        
+        // Try to play immediately
+        const playPromise = music.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            console.log(`Background music '${musicName}' started successfully`);
+            this.currentBgMusic = music;
+          }).catch(error => {
+            console.warn(`Autoplay blocked for '${musicName}', setting up user interaction handler:`, error);
+            // Set up user interaction handler if autoplay is blocked
+            this.setupUserInteractionHandler(musicName);
+          });
+        } else {
+          // Older browsers that don't return a promise
+          this.currentBgMusic = music;
+        }
+      }
+    } catch (error) {
+      console.warn(`Error playing background music '${musicName}':`, error);
+      this.setupUserInteractionHandler(musicName);
+    }
+  }
+  
+  setupUserInteractionHandler(musicName) {
+    const handleUserInteraction = () => {
+      console.log('User interaction detected, attempting to play music:', musicName);
+      if (!this.currentBgMusic || this.currentBgMusic.paused) {
+        this.playBackgroundMusic(musicName);
+      }
+      // Remove listeners after first successful play
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+    
+    // Add listeners for user interaction
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+    
+    console.log('User interaction handlers set up for music:', musicName);
+  }
+  
+  stopBackgroundMusic() {
+    if (this.currentBgMusic) {
+      this.currentBgMusic.pause();
+      this.currentBgMusic.currentTime = 0;
+      this.currentBgMusic = null;
+    }
+  }
+  
+  setVolume(volume) {
+    this.volume = Math.max(0, Math.min(1, volume));
+    
+    // Update all sound volumes
+    Object.values(this.sounds).forEach(sound => {
+      if (sound.loop) {
+        // Background music gets lower volume
+        sound.volume = this.volume * 0.3;
+      } else {
+        sound.volume = this.volume;
+      }
+    });
+  }
+  
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    
+    if (this.isMuted) {
+      this.stopBackgroundMusic();
+    }
+    
+    return this.isMuted;
+  }
+  
+  setMuted(muted) {
+    this.isMuted = muted;
+    if (muted) {
+      this.stopBackgroundMusic();
+    }
+  }
+}
+
+// Create global audio manager instance
+const audioManager = new AudioManager();
+
+// Global music state to prevent restarts
+let globalMusicState = {
+  currentMusic: null,
+  isPlaying: false
+};
+
+// Enhanced AudioManager with global state
+audioManager.playBackgroundMusicGlobal = function(musicName, forceRestart = false) {
+  // Check global state first
+  if (globalMusicState.currentMusic === musicName && globalMusicState.isPlaying && !forceRestart) {
+    console.log(`Global music state: '${musicName}' already playing, skipping`);
+    return;
+  }
+  
+  // Update global state
+  globalMusicState.currentMusic = musicName;
+  globalMusicState.isPlaying = true;
+  
+  // Call original method
+  this.playBackgroundMusic(musicName, forceRestart);
+};
+
+audioManager.stopBackgroundMusicGlobal = function() {
+  globalMusicState.currentMusic = null;
+  globalMusicState.isPlaying = false;
+  this.stopBackgroundMusic();
+};
+
+// React hook for audio management
+const useAudio = () => {
+  const [isMuted, setIsMuted] = useState(audioManager.isMuted);
+  const [volume, setVolumeState] = useState(audioManager.volume);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  
+  const toggleMute = () => {
+    const newMutedState = audioManager.toggleMute();
+    setIsMuted(newMutedState);
+  };
+  
+  const setVolume = (newVolume) => {
+    audioManager.setVolume(newVolume);
+    setVolumeState(newVolume);
+  };
+  
+  const playSound = (soundName, options) => {
+    audioManager.play(soundName, options);
+  };
+  
+  const playBackgroundMusic = (musicName, forceRestart = false) => {
+    audioManager.playBackgroundMusicGlobal(musicName, forceRestart);
+    setMusicPlaying(true);
+  };
+  
+  const stopBackgroundMusic = () => {
+    audioManager.stopBackgroundMusicGlobal();
+    setMusicPlaying(false);
+  };
+  
+  // Check if music is currently playing
+  useEffect(() => {
+    const checkMusicStatus = () => {
+      const isPlaying = audioManager.currentBgMusic && !audioManager.currentBgMusic.paused;
+      setMusicPlaying(isPlaying);
+    };
+    
+    const interval = setInterval(checkMusicStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return {
+    isMuted,
+    volume,
+    musicPlaying,
+    toggleMute,
+    setVolume,
+    playSound,
+    playBackgroundMusic,
+    stopBackgroundMusic
+  };
+};
+
+// Audio Control Component - Pixel Style
+const AudioControls = ({ currentPage = 'home' }) => {
+  const { isMuted, volume, musicPlaying, toggleMute, setVolume } = useAudio();
+  
+  return (
+    <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-gray-900 p-2 pixel-border animate-slide-in-top" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+      <button
+        onClick={toggleMute}
+        className="pixel-button p-2 bg-gray-700 hover:bg-gray-600 text-white pixel-border transition-smooth hover-scale cursor-pointer"
+        style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+        title={isMuted ? 'Unmute' : 'Mute'}
+      >
+        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+      </button>
+      
+      {!isMuted && (
+        <div className="flex items-center gap-2 animate-slide-in-right">
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-16 h-2 bg-gray-700 pixel-border cursor-pointer"
+            style={{ 
+              appearance: 'none',
+              background: `linear-gradient(to right, #10b981 0%, #10b981 ${volume * 100}%, #374151 ${volume * 100}%, #374151 100%)`
+            }}
+          />
+          <span className="text-xs text-green-400 font-bold min-w-[2rem] no-select">
+            {Math.round(volume * 100)}%
+          </span>
+        </div>
+      )}
+      
+      {/* Music playing indicator */}
+      {musicPlaying && (
+        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Music Playing"></div>
+      )}
+    </div>
+  );
+};
+
+// Add pixel-style CSS
 const customStyles = `
-  /* 像素字體 */
+  /* Pixel font */
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   
   * {
@@ -17,7 +356,7 @@ const customStyles = `
     image-rendering: crisp-edges;
   }
   
-  /* 像素風格動畫 */
+  /* Pixel-style animations */
   @keyframes strongImpactBounce {
     0% { transform: scale(1); }
     25% { transform: scale(1.3); }
@@ -60,7 +399,7 @@ const customStyles = `
     animation: weakImpactPulse 0.4s steps(2) !important;
   }
   
-  /* 像素風格邊框 */
+  /* Pixel-style borders */
   .pixel-border {
     box-shadow: 
       0 -2px 0 0 currentColor,
@@ -73,7 +412,7 @@ const customStyles = `
       -2px -2px 0 0 currentColor;
   }
   
-  /* 像素風格按鈕效果 */
+  /* Pixel-style button effects */
   .pixel-button {
     position: relative;
     transition: none !important;
@@ -95,16 +434,16 @@ const customStyles = `
   }
 `;
 
-// 注入CSS到頁面 - 確保CSS始終存在
+// Inject CSS to page - ensure CSS always exists
 const ensureAnimationStyles = () => {
   if (typeof document !== 'undefined') {
-    // 先移除舊的樣式（如果存在）
+    // Remove old styles (if exists)
     const existingStyle = document.getElementById('wordle-animations');
     if (existingStyle) {
       existingStyle.remove();
     }
     
-    // 創建新的樣式
+    // Create new styles
     const styleSheet = document.createElement('style');
     styleSheet.id = 'wordle-animations';
     styleSheet.textContent = customStyles;
@@ -112,15 +451,16 @@ const ensureAnimationStyles = () => {
   }
 };
 
-// 立即執行一次
+// Execute immediately once
 ensureAnimationStyles();
 
 // ==========================================
-// 0. 單字表組件 (Word List Component) - 像素風格
+// 0. Word List Component - Pixel Style
 // ==========================================
 const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) => {
   const [words, setWords] = useState({});
   const [loading, setLoading] = useState(false);
+  const { playSound } = useAudio();
 
   const fetchWords = async (length) => {
     if (words[length]) return;
@@ -144,16 +484,27 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
     }
   }, [isOpen, selectedLength]);
 
+  const handleLengthChange = (len) => {
+    playSound('buttonClick');
+    onLengthChange(len);
+    fetchWords(len);
+  };
+
+  const handleClose = () => {
+    playSound('buttonCancel');
+    onClose();
+  };
+
   return (
-    <div className={`fixed top-0 right-0 h-full w-96 bg-gray-900 pixel-border transform transition-transform duration-500 ease-in-out z-50 ${
+    <div className={`fixed top-0 right-0 h-full w-96 bg-gray-900 pixel-border transform transition-all duration-500 ease-in-out z-50 ${
       isOpen ? 'translate-x-0' : 'translate-x-full'
     }`} style={{ boxShadow: '-8px 0 0 rgba(0,0,0,0.8)' }}>
       <div className="p-6 h-full flex flex-col text-white">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg text-yellow-400">WORD LIST</h3>
+        <div className="flex justify-between items-center mb-6 animate-slide-in-top">
+          <h3 className="text-lg text-yellow-400 no-select">WORD LIST</h3>
           <button 
-            onClick={onClose}
-            className="pixel-button p-2 bg-red-600 hover:bg-red-500 pixel-border text-white"
+            onClick={handleClose}
+            className="pixel-button p-2 bg-red-600 hover:bg-red-500 pixel-border text-white transition-smooth hover-scale cursor-pointer"
             style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,32 +513,35 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
           </button>
         </div>
         
-        <div className="flex gap-2 mb-6">
-          {[4, 5, 6, 7].map(len => (
+        <div className="flex gap-2 mb-6 animate-slide-up animate-delay-100">
+          {[4, 5, 6, 7].map((len, index) => (
             <button
               key={len}
-              onClick={() => {
-                onLengthChange(len);
-                fetchWords(len);
-              }}
-              className={`pixel-button px-3 py-2 text-xs font-bold transition-none pixel-border ${
+              onClick={() => handleLengthChange(len)}
+              className={`pixel-button px-3 py-2 text-xs font-bold transition-smooth pixel-border hover-scale animate-slide-up ${
                 selectedLength === len 
                   ? 'bg-yellow-400 text-gray-900' 
                   : 'bg-gray-700 text-white hover:bg-gray-600'
               }`}
-              style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+              style={{ 
+                boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                animationDelay: `${(index + 1) * 0.1}s`
+              }}
             >
               {len}
             </button>
           ))}
         </div>
         
-        <div className="flex-1 overflow-y-auto bg-gray-800 p-4 pixel-border" style={{ boxShadow: 'inset 4px 4px 0 rgba(0,0,0,0.5)' }}>
+        <div className="flex-1 overflow-y-auto bg-gray-800 p-4 pixel-border animate-fade-in-scale animate-delay-200" style={{ boxShadow: 'inset 4px 4px 0 rgba(0,0,0,0.5)' }}>
           {loading ? (
-            <div className="text-center text-green-400 py-8 animate-pulse text-xs">LOADING...</div>
+            <div className="text-center text-green-400 py-8 text-xs">
+              <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-2"></div>
+              LOADING...
+            </div>
           ) : words[selectedLength] ? (
             <div className="space-y-4">
-              {Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)).map(letter => {
+              {Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)).map((letter, letterIndex) => {
                 const wordsStartingWithLetter = words[selectedLength].filter(word => 
                   word.toUpperCase().startsWith(letter)
                 );
@@ -195,13 +549,20 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
                 if (wordsStartingWithLetter.length === 0) return null;
                 
                 return (
-                  <div key={letter} className="mb-4">
+                  <div key={letter} className="mb-4 animate-slide-up" style={{ animationDelay: `${letterIndex * 0.02}s` }}>
                     <h4 className="text-sm font-bold text-yellow-400 mb-2 sticky top-0 bg-gray-800 py-1 border-b-2 border-yellow-400">
                       {letter} ({wordsStartingWithLetter.length})
                     </h4>
                     <div className="grid grid-cols-2 gap-2">
                       {wordsStartingWithLetter.map((word, index) => (
-                        <div key={index} className="px-2 py-2 bg-gray-700 pixel-border text-center text-xs text-green-400 hover:bg-gray-600 transition-none" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.4)' }}>
+                        <div 
+                          key={index} 
+                          className="px-2 py-2 bg-gray-700 pixel-border text-center text-xs text-green-400 hover:bg-gray-600 transition-smooth hover-lift animate-fade-in selectable cursor-text" 
+                          style={{ 
+                            boxShadow: '2px 2px 0 rgba(0,0,0,0.4)',
+                            animationDelay: `${(letterIndex * 0.02) + (index * 0.01)}s`
+                          }}
+                        >
                           {word}
                         </div>
                       ))}
@@ -209,12 +570,12 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
                   </div>
                 );
               })}
-              <div className="text-center text-gray-500 text-xs mt-4 py-4 border-t-2 border-gray-700">
+              <div className="text-center text-gray-500 text-xs mt-4 py-4 border-t-2 border-gray-700 animate-fade-in animate-delay-500">
                 TOTAL: {words[selectedLength].length} WORDS
               </div>
             </div>
           ) : (
-            <div className="text-center text-red-400 py-8 text-xs">ERROR: CANNOT LOAD</div>
+            <div className="text-center text-red-400 py-8 text-xs animate-error-shake">ERROR: CANNOT LOAD</div>
           )}
         </div>
       </div>
@@ -223,23 +584,64 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
 };
 
 // ==========================================
-// 1. 首頁選單 (Home Page) - 像素風格
+// 1. Home Page - Pixel Style
 // ==========================================
 const HomePage = ({ onSelectMode }) => {
   const [showWordList, setShowWordList] = useState(false);
   const [selectedLength, setSelectedLength] = useState(5);
+  const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
+
+  // No longer manage music in HomePage - handled by App component
+  useEffect(() => {
+    // Set up user interaction handler for autoplay fallback
+    const handleFirstInteraction = () => {
+      console.log('First user interaction on homepage, ensuring music');
+      playBackgroundMusic('homeMusic');
+      // Remove listener after first interaction
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+    
+    // Add listeners immediately
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+    
+    // Cleanup: remove listeners only
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
 
   const handleWordListToggle = () => {
+    playSound('buttonClick');
     setShowWordList(true);
   };
 
   const handleWordListClose = () => {
+    playSound('buttonCancel');
     setShowWordList(false);
   };
 
+  const handleModeSelect = (mode) => {
+    playSound('buttonClick');
+    // Only stop music when going to single player mode
+    // Keep music playing when going to competitive mode
+    if (mode === 'single') {
+      stopBackgroundMusic();
+    }
+    onSelectMode(mode);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* 像素風格背景點陣 */}
+    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fade-in">
+      {/* Audio Controls */}
+      <AudioControls currentPage="home" />
+      
+      {/* Pixel-style background dots */}
       <div className="absolute inset-0 opacity-10">
         <div className="w-full h-full" style={{
           backgroundImage: `
@@ -250,24 +652,24 @@ const HomePage = ({ onSelectMode }) => {
         }}></div>
       </div>
       
-      <div className={`transition-transform duration-500 ease-in-out ${showWordList ? '-translate-x-48' : 'translate-x-0'} relative z-10`}>
-        <div className="bg-gray-800 p-8 pixel-border text-white max-w-md w-full text-center" style={{
+      <div className={`transition-all duration-500 ease-in-out ${showWordList ? '-translate-x-48' : 'translate-x-0'} relative z-10`}>
+        <div className="bg-gray-800 p-8 pixel-border text-white max-w-md w-full text-center animate-bounce-in" style={{
           boxShadow: '8px 8px 0px rgba(0,0,0,0.8)'
         }}>
-          {/* 像素風格標題 */}
-          <div className="mb-8">
+          {/* Pixel-style title */}
+          <div className="mb-8 animate-slide-in-top">
             <h1 className="text-4xl text-yellow-400 mb-2 animate-pulse">WORDLE+</h1>
             <div className="text-xs text-green-400 pixel-blink">PIXEL EDITION</div>
           </div>
           
           <div className="space-y-4">
-            {/* 單人模式按鈕 */}
+            {/* Single Player Button */}
             <button 
-              onClick={() => onSelectMode('single')} 
-              className="pixel-button w-full p-4 bg-blue-600 hover:bg-blue-500 text-white pixel-border transition-none flex items-center gap-4 text-left text-xs"
+              onClick={() => handleModeSelect('single')} 
+              className="pixel-button w-full p-4 bg-blue-600 hover:bg-blue-500 text-white pixel-border transition-smooth flex items-center gap-4 text-left text-xs hover-lift animate-slide-up animate-delay-100"
               style={{ boxShadow: '4px 4px 0px rgba(0,0,0,0.6)' }}
             >
-              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-blue-900">
+              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-blue-900 transition-smooth hover-scale">
                 <User size={16} />
               </div>
               <div>
@@ -276,13 +678,13 @@ const HomePage = ({ onSelectMode }) => {
               </div>
             </button>
             
-            {/* 競賽模式按鈕 */}
+            {/* Competitive Mode Button */}
             <button 
-              onClick={() => onSelectMode('competitive')} 
-              className="pixel-button w-full p-4 bg-red-600 hover:bg-red-500 text-white pixel-border transition-none flex items-center gap-4 text-left text-xs"
+              onClick={() => handleModeSelect('competitive')} 
+              className="pixel-button w-full p-4 bg-red-600 hover:bg-red-500 text-white pixel-border transition-smooth flex items-center gap-4 text-left text-xs hover-lift animate-slide-up animate-delay-200"
               style={{ boxShadow: '4px 4px 0px rgba(0,0,0,0.6)' }}
             >
-              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-red-900">
+              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-red-900 transition-smooth hover-scale">
                 <Swords size={16} />
               </div>
               <div>
@@ -291,13 +693,13 @@ const HomePage = ({ onSelectMode }) => {
               </div>
             </button>
             
-            {/* 單字表按鈕 */}
+            {/* Word List Button */}
             <button 
               onClick={handleWordListToggle}
-              className="pixel-button w-full p-4 bg-green-600 hover:bg-green-500 text-white pixel-border transition-none flex items-center gap-4 text-left text-xs"
+              className="pixel-button w-full p-4 bg-green-600 hover:bg-green-500 text-white pixel-border transition-smooth flex items-center gap-4 text-left text-xs hover-lift animate-slide-up animate-delay-300"
               style={{ boxShadow: '4px 4px 0px rgba(0,0,0,0.6)' }}
             >
-              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-green-900">
+              <div className="w-8 h-8 bg-yellow-400 pixel-border flex items-center justify-center text-green-900 transition-smooth hover-scale">
                 <Info size={16} />
               </div>
               <div>
@@ -307,8 +709,8 @@ const HomePage = ({ onSelectMode }) => {
             </button>
           </div>
           
-          {/* 像素風格版本信息 */}
-          <div className="mt-8 pt-6 border-t-2 border-gray-600 text-xs text-gray-400">
+          {/* Pixel-style version info */}
+          <div className="mt-8 pt-6 border-t-2 border-gray-600 text-xs text-gray-400 animate-slide-up animate-delay-400">
             <div className="flex justify-center items-center gap-2">
               <div className="w-2 h-2 bg-green-400 animate-pulse"></div>
               <span>v2.1.0 • PIXEL EDITION</span>
@@ -325,10 +727,10 @@ const HomePage = ({ onSelectMode }) => {
         onLengthChange={setSelectedLength}
       />
       
-      {/* 背景遮罩 */}
+      {/* Background overlay */}
       {showWordList && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-500"
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-500 animate-fade-in"
           onClick={handleWordListClose}
         />
       )}
@@ -337,7 +739,7 @@ const HomePage = ({ onSelectMode }) => {
 };
 
 // ==========================================
-// 1.5. 字母狀態追蹤組件 (Letter Status Tracker) - 像素風格
+// 1.5. Letter Status Tracker Component - Pixel Style
 // ==========================================
 const LetterStatusTracker = ({ guesses }) => {
   const getLetterStatus = () => {
@@ -364,15 +766,22 @@ const LetterStatusTracker = ({ guesses }) => {
   const { correct, present, absent } = getLetterStatus();
 
   return (
-    <div className="bg-gray-900 p-4 pixel-border w-full max-w-xs text-white" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
-      <h3 className="text-yellow-400 font-bold mb-4 text-center text-sm">LETTER STATUS</h3>
+    <div className="bg-gray-900 p-4 pixel-border w-full max-w-xs text-white animate-fade-in-scale" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+      <h3 className="text-yellow-400 font-bold mb-4 text-center text-sm animate-slide-in-top no-select">LETTER STATUS</h3>
       
       {correct.length > 0 && (
-        <div className="mb-4">
-          <div className="text-green-400 text-xs font-bold mb-2">CORRECT</div>
+        <div className="mb-4 animate-slide-up animate-delay-100">
+          <div className="text-green-400 text-xs font-bold mb-2 no-select">CORRECT</div>
           <div className="flex flex-wrap gap-2">
-            {correct.map(letter => (
-              <div key={letter} className="w-8 h-8 bg-green-600 text-white pixel-border flex items-center justify-center text-xs font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+            {correct.map((letter, index) => (
+              <div 
+                key={letter} 
+                className="w-8 h-8 bg-green-600 text-white pixel-border flex items-center justify-center text-xs font-bold transition-smooth hover-scale animate-bounce-in no-select cursor-help" 
+                style={{ 
+                  boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                  animationDelay: `${index * 0.1}s`
+                }}
+              >
                 {letter}
               </div>
             ))}
@@ -381,11 +790,18 @@ const LetterStatusTracker = ({ guesses }) => {
       )}
 
       {present.length > 0 && (
-        <div className="mb-4">
-          <div className="text-yellow-400 text-xs font-bold mb-2">WRONG POS</div>
+        <div className="mb-4 animate-slide-up animate-delay-200">
+          <div className="text-yellow-400 text-xs font-bold mb-2 no-select">WRONG POS</div>
           <div className="flex flex-wrap gap-2">
-            {present.map(letter => (
-              <div key={letter} className="w-8 h-8 bg-yellow-600 text-white pixel-border flex items-center justify-center text-xs font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+            {present.map((letter, index) => (
+              <div 
+                key={letter} 
+                className="w-8 h-8 bg-yellow-600 text-white pixel-border flex items-center justify-center text-xs font-bold transition-smooth hover-scale animate-fade-in no-select cursor-help" 
+                style={{ 
+                  boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                  animationDelay: `${index * 0.1}s`
+                }}
+              >
                 {letter}
               </div>
             ))}
@@ -394,11 +810,18 @@ const LetterStatusTracker = ({ guesses }) => {
       )}
 
       {absent.length > 0 && (
-        <div className="mb-4">
-          <div className="text-gray-400 text-xs font-bold mb-2">NOT FOUND</div>
+        <div className="mb-4 animate-slide-up animate-delay-300">
+          <div className="text-gray-400 text-xs font-bold mb-2 no-select">NOT FOUND</div>
           <div className="flex flex-wrap gap-2">
-            {absent.map(letter => (
-              <div key={letter} className="w-8 h-8 bg-gray-600 text-gray-300 pixel-border flex items-center justify-center text-xs font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+            {absent.map((letter, index) => (
+              <div 
+                key={letter} 
+                className="w-8 h-8 bg-gray-600 text-gray-300 pixel-border flex items-center justify-center text-xs font-bold transition-smooth hover-scale animate-fade-in no-select cursor-help" 
+                style={{ 
+                  boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                  animationDelay: `${index * 0.05}s`
+                }}
+              >
                 {letter}
               </div>
             ))}
@@ -407,7 +830,7 @@ const LetterStatusTracker = ({ guesses }) => {
       )}
 
       {correct.length === 0 && present.length === 0 && absent.length === 0 && (
-        <div className="text-center text-gray-500 py-8 text-xs">
+        <div className="text-center text-gray-500 py-8 text-xs animate-pulse no-select">
           START GUESSING
         </div>
       )}
@@ -416,25 +839,29 @@ const LetterStatusTracker = ({ guesses }) => {
 };
 
 // ==========================================
-// 1.7. 結算彈窗組件 (Result Modal Component) - 像素風格
+// 1.7. Result Modal Component - Pixel Style
 // ==========================================
-const ResultModal = ({ show, type }) => {
+const ResultModal = ({ show, type, mode = 'competitive' }) => {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-pulse" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
         {type === 'win' ? (
           <>
-            <div className="text-4xl mb-4">🏆</div>
-            <h2 className="text-xl font-bold text-green-400 mb-2">VICTORY!</h2>
-            <p className="text-gray-300 text-xs">NEXT ROUND...</p>
+            <div className="text-4xl mb-4 animate-success-bounce">🏆</div>
+            <h2 className="text-xl font-bold text-green-400 mb-2 animate-slide-up">VICTORY!</h2>
+            <p className="text-gray-300 text-xs animate-fade-in animate-delay-200">
+              {mode === 'single' ? 'CLICK NEW GAME TO PLAY AGAIN' : 'NEXT ROUND...'}
+            </p>
           </>
         ) : (
           <>
-            <div className="text-4xl mb-4">💀</div>
-            <h2 className="text-xl font-bold text-red-400 mb-2">DEFEAT!</h2>
-            <p className="text-gray-300 text-xs">NEXT ROUND...</p>
+            <div className="text-4xl mb-4 animate-error-shake">💀</div>
+            <h2 className="text-xl font-bold text-red-400 mb-2 animate-slide-up">DEFEAT!</h2>
+            <p className="text-gray-300 text-xs animate-fade-in animate-delay-200">
+              {mode === 'single' ? 'CLICK NEW GAME TO TRY AGAIN' : 'NEXT ROUND...'}
+            </p>
           </>
         )}
       </div>
@@ -443,12 +870,12 @@ const ResultModal = ({ show, type }) => {
 };
 
 // ==========================================
-// 2. 單人模式 (Single Player)
+// 2. Single Player Mode
 // ==========================================
 const SinglePlayerGame = ({ onBack }) => {
   const [gameId, setGameId] = useState(null);
   const [wordLength, setWordLength] = useState(5);
-  const [maxGuesses, setMaxGuesses] = useState(6);
+  const [maxGuesses, setMaxGuesses] = useState(6); // Fixed to 6 guesses
   const [guesses, setGuesses] = useState([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [gameOver, setGameOver] = useState(false);
@@ -456,40 +883,211 @@ const SinglePlayerGame = ({ onBack }) => {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverConnected, setServerConnected] = useState(false);
-  const [remainingGuesses, setRemainingGuesses] = useState(6);
+  const [remainingGuesses, setRemainingGuesses] = useState(6); // Fixed to 6 guesses
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
+  const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   useEffect(() => { checkServerHealth(); }, []);
   useEffect(() => { if (serverConnected) startNewGame(wordLength); }, [serverConnected, wordLength]);
 
+  // Start single player background music when component mounts
+  useEffect(() => {
+    playBackgroundMusic('singlePlayerMusic'); // Use dedicated single player music
+    
+    // Cleanup: stop music when component unmounts
+    return () => {
+      stopBackgroundMusic();
+    };
+  }, []);
+
   const checkServerHealth = async () => {
     try { const res = await fetch(`${API_URL}/health`); if (res.ok) setServerConnected(true); } catch { setServerConnected(false); setMessage('ERROR: NO SERVER'); }
   };
+  
   const startNewGame = async (length = 5) => {
+    playSound('buttonClick');
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/game/new`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ length }), });
       const data = await response.json();
-      if (data.success) { setGameId(data.gameId); setGuesses([]); setCurrentGuess(''); setGameOver(false); setWon(false); setMessage(''); setMaxGuesses(data.maxGuesses); setRemainingGuesses(data.maxGuesses); } else { setMessage(data.error); }
-    } catch (e) { setMessage('ERROR: CONNECTION FAILED'); }
+      if (data.success) { 
+        setGameId(data.gameId); 
+        setGuesses([]); 
+        setCurrentGuess(''); 
+        setGameOver(false); 
+        setWon(false); 
+        setMessage(''); 
+        setMaxGuesses(6); // Always use 6 guesses
+        setRemainingGuesses(6); // Always use 6 guesses
+        setShowResultModal(false);
+        setResultModalType('');
+      } else { 
+        setMessage(data.error); 
+      }
+    } catch (e) { 
+      setMessage('ERROR: CONNECTION FAILED'); 
+    }
     setLoading(false);
   };
+  
   const handleKeyPress = async (key) => {
     if (gameOver || loading || !serverConnected) return;
+    
     if (key === 'ENTER') {
-      if (currentGuess.length !== wordLength) { setMessage(`NEED ${wordLength} LETTERS`); setTimeout(() => setMessage(''), 1500); return; }
+      if (currentGuess.length !== wordLength) { 
+        playSound('buttonCancel');
+        setMessage(`NEED ${wordLength} LETTERS`); 
+        setTimeout(() => setMessage(''), 1500); 
+        return; 
+      }
+      
+      // Check for duplicate word input
+      const isDuplicate = guesses.some(guess => guess.word === currentGuess);
+      if (isDuplicate) {
+        playSound('buttonCancel');
+        setMessage('WORD ALREADY GUESSED!');
+        setTimeout(() => setMessage(''), 1500);
+        return;
+      }
+      
+      playSound('buttonClick');
       setLoading(true);
       try {
         const response = await fetch(`${API_URL}/game/${gameId}/guess`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guess: currentGuess }), });
         const data = await response.json();
-        if (data.success) { setGuesses(data.guesses); setRemainingGuesses(data.remainingGuesses); setCurrentGuess(''); if (data.won) { setWon(true); setGameOver(true); setMessage('VICTORY! ' + data.message); } else if (data.gameOver) { setGameOver(true); setMessage(data.message); } } else { setMessage(data.error); setTimeout(() => setMessage(''), 2000); }
-      } catch (e) { setMessage('SUBMIT FAILED'); }
+        if (data.success) { 
+          const newGuesses = data.guesses;
+          const latestGuess = newGuesses[newGuesses.length - 1];
+          
+          setGuesses(newGuesses); 
+          setRemainingGuesses(data.remainingGuesses); 
+          setCurrentGuess(''); 
+          
+          // Play single cell sound effect based on word result priority
+          setTimeout(() => {
+            const hasCorrect = latestGuess.result.includes('correct');
+            const hasPresent = latestGuess.result.includes('present');
+            
+            if (hasCorrect) {
+              playSound('correctCell'); // Green sound if any correct letters
+            } else if (hasPresent) {
+              playSound('presentCell'); // Yellow sound if any present letters (but no correct)
+            } else {
+              playSound('absentCell'); // Gray sound if all letters are absent
+            }
+          }, 200);
+          
+          // Add cell animations
+          setTimeout(() => {
+            const currentRowIndex = newGuesses.length - 1;
+            console.log(`Triggering DOM animation for row ${currentRowIndex} in single player`);
+            
+            const gridContainer = document.querySelector('.space-y-2');
+            if (gridContainer) {
+              const rows = gridContainer.children;
+              const targetRow = rows[currentRowIndex];
+              
+              if (targetRow) {
+                const cellsInRow = targetRow.querySelectorAll('.wordle-cell');
+                console.log(`Found ${cellsInRow.length} cells in row ${currentRowIndex}`);
+                
+                for (let j = 0; j < latestGuess.word.length && j < cellsInRow.length; j++) {
+                  const cell = cellsInRow[j];
+                  
+                  if (cell) {
+                    // Remove existing animation classes
+                    cell.classList.remove('animate-strong-impact', 'animate-medium-impact', 'animate-weak-impact');
+                    
+                    // Force repaint
+                    cell.offsetHeight;
+                    
+                    // Add corresponding animation based on result
+                    let animationClass = '';
+                    if (latestGuess.result[j] === 'correct') {
+                      animationClass = 'animate-strong-impact';
+                    } else if (latestGuess.result[j] === 'present') {
+                      animationClass = 'animate-medium-impact';
+                    } else {
+                      animationClass = 'animate-weak-impact';
+                    }
+                    
+                    console.log(`Adding ${animationClass} to cell ${j} in row ${currentRowIndex}`);
+                    cell.classList.add(animationClass);
+                    
+                    // Remove class after animation completes
+                    setTimeout(() => {
+                      cell.classList.remove(animationClass);
+                    }, 1000);
+                  }
+                }
+              }
+            }
+          }, 300);
+          
+          if (data.won) { 
+            setTimeout(() => {
+              playSound('scoreIncrease');
+            }, latestGuess.result.length * 100 + 500);
+            setWon(true); 
+            setGameOver(true); 
+            setResultModalType('win');
+            setShowResultModal(true);
+            setMessage('VICTORY! ' + data.message); 
+            
+            // Auto-hide modal after 3 seconds
+            setTimeout(() => {
+              setShowResultModal(false);
+            }, 3000);
+          } else if (data.gameOver) { 
+            setGameOver(true); 
+            setResultModalType('lose');
+            setShowResultModal(true);
+            setMessage(data.message); 
+            
+            // Auto-hide modal after 3 seconds
+            setTimeout(() => {
+              setShowResultModal(false);
+            }, 3000);
+          } 
+        } else { 
+          playSound('buttonCancel');
+          setMessage(data.error); 
+          setTimeout(() => setMessage(''), 2000); 
+        }
+      } catch (e) { 
+        playSound('buttonCancel');
+        setMessage('SUBMIT FAILED'); 
+      }
       setLoading(false);
-    } else if (key === 'BACKSPACE') { setCurrentGuess(prev => prev.slice(0, -1)); } else if (currentGuess.length < wordLength && /^[A-Z]$/.test(key)) { setCurrentGuess(prev => prev + key); }
+    } else if (key === 'BACKSPACE') { 
+      if (currentGuess.length > 0) {
+        playSound('buttonCancel');
+      }
+      setCurrentGuess(prev => prev.slice(0, -1)); 
+    } else if (currentGuess.length < wordLength && /^[A-Z]$/.test(key)) { 
+      playSound('buttonClick');
+      setCurrentGuess(prev => prev + key); 
+    }
   };
+  
   useEffect(() => {
     const handleKeyDown = (e) => { if (e.key === 'Enter') handleKeyPress('ENTER'); else if (e.key === 'Backspace') handleKeyPress('BACKSPACE'); else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase()); };
     window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentGuess, gameOver, loading]);
+
+  const handleBack = () => {
+    playSound('buttonCancel');
+    stopBackgroundMusic(); // Stop single player music
+    onBack();
+  };
+
+  const handleWordLengthChange = (len) => {
+    if (!loading) {
+      playSound('buttonClick');
+      setWordLength(len);
+    }
+  };
 
   const getKeyColor = (key) => {
     let status = 'bg-gray-600 text-white';
@@ -502,7 +1100,7 @@ const SinglePlayerGame = ({ onBack }) => {
     for (let i = 0; i < maxGuesses; i++) {
       const guess = guesses[i]; const isCurrent = i === guesses.length && !gameOver;
       rows.push(
-        <div key={i} className="flex gap-1 justify-center">
+        <div key={i} className={`flex gap-1 justify-center animate-slide-up`} style={{ animationDelay: `${i * 0.1}s` }}>
           {[...Array(wordLength)].map((_, j) => {
             let letter = '', style = 'bg-gray-800 text-white pixel-border';
             if (guess) { 
@@ -514,7 +1112,7 @@ const SinglePlayerGame = ({ onBack }) => {
               letter = currentGuess[j]; 
               style = 'bg-blue-600 text-white pixel-border animate-pulse'; 
             }
-            return <div key={j} className={`wordle-cell ${wordLength >= 7 ? 'w-10 h-10 text-sm' : 'w-12 h-12 text-lg'} flex items-center justify-center font-bold ${style} transition-none`} style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>{letter}</div>;
+            return <div key={j} className={`wordle-cell ${wordLength >= 7 ? 'w-10 h-10 text-sm' : 'w-12 h-12 text-lg'} flex items-center justify-center font-bold ${style} transition-smooth hover-scale no-select cursor-help`} style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>{letter}</div>;
           })}
         </div>
       );
@@ -525,81 +1123,108 @@ const SinglePlayerGame = ({ onBack }) => {
   const keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'], ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'], ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center py-8 px-4">
-      <div className="max-w-xl w-full bg-gray-900 p-6 pixel-border text-white relative" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
-        <button onClick={onBack} className="pixel-button absolute top-6 left-6 p-2 bg-red-600 hover:bg-red-500 pixel-border" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }} title="Back">
-          <ArrowLeft size={16} />
-        </button>
-        
-        <header className="flex flex-col items-center mb-6 border-b-2 border-gray-700 pb-4">
-          <h1 className="text-xl font-bold text-yellow-400">SINGLE PLAYER</h1>
-        </header>
-        
-        <div className="flex justify-center gap-2 mb-6">
-          {[4, 5, 6, 7].map(len => (
-            <button 
-              key={len} 
-              onClick={() => !loading && setWordLength(len)} 
-              className={`pixel-button px-3 py-2 font-bold transition-none text-xs pixel-border ${
-                wordLength === len ? 'bg-yellow-400 text-gray-900' : 'bg-gray-700 text-white hover:bg-gray-600'
-              }`}
-              style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
-            >
-              {len}
-            </button>
-          ))}
-        </div>
-        
-        {message && (
-          <div className="mb-4 p-3 bg-blue-600 text-white pixel-border text-center font-bold animate-pulse text-xs" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
-            {message}
+    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center py-8 px-4 animate-slide-in-right">
+      {/* Audio Controls */}
+      <AudioControls currentPage="single" />
+      
+      <div className="max-w-6xl w-full flex flex-col lg:flex-row gap-6 items-start animate-bounce-in">
+        {/* Main game area */}
+        <div className="flex-1 w-full bg-gray-900 p-6 pixel-border text-white relative" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+          <button onClick={handleBack} className="pixel-button absolute top-6 left-6 p-2 bg-red-600 hover:bg-red-500 pixel-border transition-smooth hover-scale cursor-pointer" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }} title="Back">
+            <ArrowLeft size={16} />
+          </button>
+          
+          <header className="flex flex-col items-center mb-6 border-b-2 border-gray-700 pb-4 animate-slide-in-top">
+            <h1 className="text-xl font-bold text-yellow-400 no-select">SINGLE PLAYER</h1>
+          </header>
+          
+          <div className="flex justify-center gap-2 mb-6 animate-slide-up animate-delay-100">
+            {[4, 5, 6, 7].map((len, index) => (
+              <button 
+                key={len} 
+                onClick={() => handleWordLengthChange(len)} 
+                className={`pixel-button px-3 py-2 font-bold transition-smooth text-xs pixel-border hover-scale animate-fade-in ${
+                  wordLength === len ? 'bg-yellow-400 text-gray-900' : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+                style={{ 
+                  boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                  animationDelay: `${(index + 1) * 0.1}s`
+                }}
+              >
+                {len}
+              </button>
+            ))}
           </div>
-        )}
-        
-        <div className="space-y-2 mb-8 select-none">{renderGrid()}</div>
-        
-        <div className="flex flex-col gap-2 w-full">
-          {keys.map((row, i) => (
-            <div key={i} className="flex gap-1 justify-center w-full">
-              {row.map(key => (
-                <button 
-                  key={key} 
-                  onClick={() => handleKeyPress(key)} 
-                  className={`pixel-button h-10 font-bold text-xs transition-none flex items-center justify-center pixel-border ${
-                    key === 'ENTER' || key === 'BACKSPACE' ? 'flex-[1.5] text-xs' : 'flex-1'
-                  } ${getKeyColor(key)}`}
-                  style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
-                >
-                  {key === 'BACKSPACE' ? '⌫' : key}
-                </button>
-              ))}
+          
+          {message && (
+            <div className={`mb-4 p-3 pixel-border text-center font-bold text-xs animate-modal-slide-in ${
+              message.includes('VICTORY') ? 'bg-green-600 text-white animate-success-bounce' : 
+              message.includes('ERROR') || message.includes('ALREADY') ? 'bg-red-600 text-white animate-error-shake' : 
+              'bg-blue-600 text-white animate-pulse'
+            }`} style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+              {message}
             </div>
-          ))}
+          )}
+          
+          <div className="space-y-2 mb-8 select-none animate-fade-in-scale animate-delay-200">{renderGrid()}</div>
+          
+          <div className="flex flex-col gap-2 w-full animate-slide-in-bottom animate-delay-300">
+            {keys.map((row, i) => (
+              <div key={i} className="flex gap-1 justify-center w-full">
+                {row.map((key, keyIndex) => (
+                  <button 
+                    key={key} 
+                    onClick={() => handleKeyPress(key)} 
+                    className={`pixel-button h-10 font-bold text-xs transition-smooth flex items-center justify-center pixel-border hover-scale animate-fade-in cursor-pointer ${
+                      key === 'ENTER' || key === 'BACKSPACE' ? 'flex-[1.5] text-xs' : 'flex-1'
+                    } ${getKeyColor(key)}`}
+                    style={{ 
+                      boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                      animationDelay: `${(i * 0.1) + (keyIndex * 0.02)}s`
+                    }}
+                  >
+                    {key === 'BACKSPACE' ? '⌫' : key}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          
+          <button 
+            onClick={() => startNewGame(wordLength)} 
+            className="pixel-button mt-8 w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-500 cursor-pointer"
+            style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+          >
+            <RotateCcw size={16}/> NEW GAME
+          </button>
         </div>
         
-        <button 
-          onClick={() => startNewGame(wordLength)} 
-          className="pixel-button mt-8 w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold flex items-center justify-center gap-2 pixel-border"
-          style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
-        >
-          <RotateCcw size={16}/> NEW GAME
-        </button>
+        {/* Right side: Letter status */}
+        <div className="flex-shrink-0 w-full lg:w-auto animate-slide-in-right animate-delay-500">
+          <LetterStatusTracker guesses={guesses} />
+        </div>
       </div>
+      
+      {/* Result Modal */}
+      <ResultModal show={showResultModal} type={resultModalType} mode="single" />
     </div>
   );
 };
 
 // ==========================================
-// 3. 競賽模式 (Competitive Mode)
+// 3. Competitive Mode
 // ==========================================
 const CompetitiveMode = ({ onBack }) => {
   const [socket, setSocket] = useState(null);
   const [viewState, setViewState] = useState('lobby');
-  
-  // 確保動畫CSS已載入
+  const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
+
+  // Ensure animation CSS is loaded
   useEffect(() => {
     ensureAnimationStyles();
   }, []);
+
+  // Music is now managed by App component - no need to manage here
   
   // Lobby 
   const [roomCode, setRoomCode] = useState('');
@@ -607,7 +1232,7 @@ const CompetitiveMode = ({ onBack }) => {
   const [selectedLength, setSelectedLength] = useState(5);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // 遊戲階段
+  // Game stage
   const [wordLength, setWordLength] = useState(5);
   const [myRound, setMyRound] = useState(1);
   const [opponentRound, setOpponentRound] = useState(1);
@@ -619,18 +1244,18 @@ const CompetitiveMode = ({ onBack }) => {
   const [isPaused, setIsPaused] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
 
-  //得分版
+  // Scoreboard
   const [guesses, setGuesses] = useState([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [roundWinner, setRoundWinner] = useState(null);
-  const [animatingRow, setAnimatingRow] = useState(-1); // 追蹤正在動畫的行
-  const [animatedCells, setAnimatedCells] = useState(new Set()); // 追蹤已經動畫過的方塊
-  const [guessHistory, setGuessHistory] = useState([]); // 所有猜測歷史
+  const [animatingRow, setAnimatingRow] = useState(-1); // Track animating row
+  const [animatedCells, setAnimatedCells] = useState(new Set()); // Track animated cells
+  const [guessHistory, setGuessHistory] = useState([]); // All guess history
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
 
   useEffect(() => {
-    // 創建socket連接的函數
+    // Create socket connection function
     const createSocket = () => {
       const newSocket = io(SOCKET_URL);
       setSocket(newSocket);
@@ -641,12 +1266,14 @@ const CompetitiveMode = ({ onBack }) => {
       });
 
       newSocket.on('game_start', ({ wordLength, players }) => {
+        playSound('battleStart');
+        playBackgroundMusic('battleMusic');
         setWordLength(wordLength);
         setPlayers(players);
         setGameStartCountdown(3);
         setViewState('countdown');
         
-        // 3秒倒數
+        // 3 second countdown
         let count = 3;
         const countdownInterval = setInterval(() => {
           count--;
@@ -667,16 +1294,18 @@ const CompetitiveMode = ({ onBack }) => {
         setCurrentGuess('');
         setRoundWinner(null);
         setErrorMessage('');
-        setCanSkip(true); // 隨時可以跳過
+        setCanSkip(true); // Can skip anytime
         setShowResultModal(false);
         setAnimatingRow(-1);
-        setAnimatedCells(new Set()); // 重置動畫追蹤
+        setAnimatedCells(new Set()); // Reset animation tracking
       });
 
 
 
       newSocket.on('player_left', ({ message }) => {
         setErrorMessage(message);
+        // Switch back to home music when opponent leaves
+        playBackgroundMusic('homeMusic');
         setTimeout(() => {
           setViewState('lobby');
           setRoomCode('');
@@ -689,17 +1318,31 @@ const CompetitiveMode = ({ onBack }) => {
       });
 
       newSocket.on('guess_result', ({ guess, result, isCorrect, gameOver }) => {
-        // 先更新猜測
+        // Play single cell sound effect based on word result priority
+        setTimeout(() => {
+          const hasCorrect = result.includes('correct');
+          const hasPresent = result.includes('present');
+          
+          if (hasCorrect) {
+            playSound('correctCell'); // Green sound if any correct letters
+          } else if (hasPresent) {
+            playSound('presentCell'); // Yellow sound if any present letters (but no correct)
+          } else {
+            playSound('absentCell'); // Gray sound if all letters are absent
+          }
+        }, 200);
+        
+        // Update guesses first
         setGuesses(prev => {
           const newGuesses = [...prev, { word: guess, result }];
-          const currentRowIndex = newGuesses.length - 1; // 使用更新後的長度計算行索引
+          const currentRowIndex = newGuesses.length - 1; // Calculate row index using updated length
           
-          // 在狀態更新後觸發動畫
+          // Trigger animation after state update
           setTimeout(() => {
             console.log(`Triggering DOM animation for row ${currentRowIndex}`);
             console.log(`Total guesses after update: ${newGuesses.length}`);
             
-            // 使用更精確的方法找到對應行的方塊
+            // Use more precise method to find corresponding row cells
             const gridContainer = document.querySelector('.space-y-2');
             if (gridContainer) {
               const rows = gridContainer.children;
@@ -714,13 +1357,13 @@ const CompetitiveMode = ({ onBack }) => {
                   const cell = cellsInRow[j];
                   
                   if (cell) {
-                    // 移除現有動畫類別
+                    // Remove existing animation classes
                     cell.classList.remove('animate-strong-impact', 'animate-medium-impact', 'animate-weak-impact');
                     
-                    // 強制重繪
+                    // Force repaint
                     cell.offsetHeight;
                     
-                    // 根據結果添加對應動畫
+                    // Add corresponding animation based on result
                     let animationClass = '';
                     if (result[j] === 'correct') {
                       animationClass = 'animate-strong-impact';
@@ -733,7 +1376,7 @@ const CompetitiveMode = ({ onBack }) => {
                     console.log(`Adding ${animationClass} to cell ${j} in row ${currentRowIndex}`);
                     cell.classList.add(animationClass);
                     
-                    // 動畫完成後移除類別
+                    // Remove class after animation completes
                     setTimeout(() => {
                       cell.classList.remove(animationClass);
                     }, 1000);
@@ -751,22 +1394,25 @@ const CompetitiveMode = ({ onBack }) => {
         });
         
         setGuessHistory(prev => [...prev, { word: guess, result }]);
-        setCurrentGuess(''); // 清空輸入框
+        setCurrentGuess(''); // Clear input box
         
-        // 檢查是否猜對或遊戲結束
+        // Check if guessed correctly or game over
         if (isCorrect) {
+          setTimeout(() => {
+            playSound('scoreIncrease');
+          }, result.length * 100 + 500);
           setResultModalType('win');
           setShowResultModal(true);
           setTimeout(() => {
             setShowResultModal(false);
-            // 後端會自動開始下一回合
+            // Backend will automatically start next round
           }, 1000);
         } else if (gameOver) {
           setResultModalType('lose');
           setShowResultModal(true);
           setTimeout(() => {
             setShowResultModal(false);
-            // 後端會自動開始下一回合
+            // Backend will automatically start next round
           }, 1000);
         }
       });
@@ -776,17 +1422,17 @@ const CompetitiveMode = ({ onBack }) => {
         setTimeout(() => setErrorMessage(''), 1500);
       });
 
-      // 新增：對手猜對的通知
+      // Add: Opponent won notification
       newSocket.on('opponent_won_round', ({ opponentName, word, points }) => {
-        setErrorMessage(`🎉 對手猜對了！答案是 "${word}" (+${points} 分)`);
+        setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)`);
         setTimeout(() => setErrorMessage(''), 3000);
       });
 
       newSocket.on('round_winner', (data) => {
-        // 只更新分數，不影響當前玩家的遊戲流程
+        // Only update scores, don't affect current player's game flow
         setPlayers(data.updatedPlayers);
         
-        // 檢查是否有人達到30分
+        // Check if anyone reached 30 points
         const myScore = data.updatedPlayers[newSocket.id]?.score || 0;
         const opponentId = Object.keys(data.updatedPlayers).find(id => id !== newSocket.id);
         const opponentScore = data.updatedPlayers[opponentId]?.score || 0;
@@ -796,6 +1442,8 @@ const CompetitiveMode = ({ onBack }) => {
             const winner = myScore >= 30 ? newSocket.id : opponentId;
             setWinnerInfo(winner);
             setViewState('gameOver');
+            // Switch back to home music when game ends
+            playBackgroundMusic('homeMusic');
           }, 2000);
         }
       });
@@ -804,6 +1452,8 @@ const CompetitiveMode = ({ onBack }) => {
         setPlayers(data.players);
         setWinnerInfo(data.winner);
         setViewState('gameOver');
+        // Switch back to home music when game is over
+        playBackgroundMusic('homeMusic');
       });
       
       newSocket.on('error_message', (msg) => {
@@ -813,10 +1463,10 @@ const CompetitiveMode = ({ onBack }) => {
       return newSocket;
     };
 
-    // 初始創建socket
+    // Initial socket creation
     const initialSocket = createSocket();
     
-    // 清理函數
+    // Cleanup function
     return () => {
       if (initialSocket) {
         initialSocket.close();
@@ -826,19 +1476,25 @@ const CompetitiveMode = ({ onBack }) => {
 
   const createRoom = () => {
     if (!socket) return;
+    playSound('buttonClick');
     socket.emit('create_room', { wordLength: selectedLength });
   };
 
   const joinRoom = () => {
     if (!socket || joinCode.length !== 6) {
+        playSound('buttonCancel');
         setErrorMessage('Please enter a 6-character code');
         return;
     }
+    playSound('buttonClick');
     setRoomCode(joinCode);
     socket.emit('join_room', { roomCode: joinCode });
   };
 
   const exitGame = () => {
+    playSound('buttonCancel');
+    // Switch back to home music immediately when user exits
+    playBackgroundMusic('homeMusic');
     if (socket) {
       socket.emit('leave_room', { roomCode });
       socket.disconnect();
@@ -847,7 +1503,10 @@ const CompetitiveMode = ({ onBack }) => {
   };
 
   const resetGameState = () => {
-    // 重置所有狀態
+    // Switch back to home music when resetting game state
+    playBackgroundMusic('homeMusic');
+    
+    // Reset all states
     setViewState('lobby');
     setRoomCode('');
     setJoinCode('');
@@ -871,17 +1530,19 @@ const CompetitiveMode = ({ onBack }) => {
     setResultModalType('');
     setAnimatedCells(new Set());
     
-    // 重新建立socket連接
+    // Re-establish socket connection
     const newSocket = io(SOCKET_URL);
     setSocket(newSocket);
 
-    // 重新綁定所有事件監聽器
+    // Re-bind all event listeners
     newSocket.on('room_created', ({ roomCode }) => {
       setRoomCode(roomCode);
       setViewState('waiting');
     });
 
     newSocket.on('game_start', ({ wordLength, players }) => {
+      playSound('battleStart');
+      playBackgroundMusic('battleMusic');
       setWordLength(wordLength);
       setPlayers(players);
       setGameStartCountdown(3);
@@ -908,11 +1569,13 @@ const CompetitiveMode = ({ onBack }) => {
       setRoundWinner(null);
       setErrorMessage('');
       setCanSkip(true);
-      setAnimatedCells(new Set()); // 重置動畫追蹤
+      setAnimatedCells(new Set()); // Reset animation tracking
     });
 
     newSocket.on('player_left', ({ message }) => {
       setErrorMessage(message);
+      // Switch back to home music when opponent leaves
+      playBackgroundMusic('homeMusic');
       setTimeout(() => {
         resetGameState();
       }, 3000);
@@ -924,17 +1587,31 @@ const CompetitiveMode = ({ onBack }) => {
     });
 
     newSocket.on('guess_result', ({ guess, result, isCorrect, gameOver }) => {
-      // 先更新猜測
+      // Play single cell sound effect based on word result priority
+      setTimeout(() => {
+        const hasCorrect = result.includes('correct');
+        const hasPresent = result.includes('present');
+        
+        if (hasCorrect) {
+          playSound('correctCell'); // Green sound if any correct letters
+        } else if (hasPresent) {
+          playSound('presentCell'); // Yellow sound if any present letters (but no correct)
+        } else {
+          playSound('absentCell'); // Gray sound if all letters are absent
+        }
+      }, 200);
+      
+      // Update guesses first
       setGuesses(prev => {
         const newGuesses = [...prev, { word: guess, result }];
-        const currentRowIndex = newGuesses.length - 1; // 使用更新後的長度計算行索引
+        const currentRowIndex = newGuesses.length - 1; // Calculate row index using updated length
         
-        // 在狀態更新後觸發動畫
+        // Trigger animation after state update
         setTimeout(() => {
           console.log(`Triggering DOM animation for row ${currentRowIndex} (reset)`);
           console.log(`Total guesses after update: ${newGuesses.length} (reset)`);
           
-          // 使用更精確的方法找到對應行的方塊
+          // Use more precise method to find corresponding row cells
           const gridContainer = document.querySelector('.space-y-2');
           if (gridContainer) {
             const rows = gridContainer.children;
@@ -949,13 +1626,13 @@ const CompetitiveMode = ({ onBack }) => {
                 const cell = cellsInRow[j];
                 
                 if (cell) {
-                  // 移除現有動畫類別
+                  // Remove existing animation classes
                   cell.classList.remove('animate-strong-impact', 'animate-medium-impact', 'animate-weak-impact');
                   
-                  // 強制重繪
+                  // Force repaint
                   cell.offsetHeight;
                   
-                  // 根據結果添加對應動畫
+                  // Add corresponding animation based on result
                   let animationClass = '';
                   if (result[j] === 'correct') {
                     animationClass = 'animate-strong-impact';
@@ -968,7 +1645,7 @@ const CompetitiveMode = ({ onBack }) => {
                   console.log(`Adding ${animationClass} to cell ${j} in row ${currentRowIndex} (reset)`);
                   cell.classList.add(animationClass);
                   
-                  // 動畫完成後移除類別
+                  // Remove class after animation completes
                   setTimeout(() => {
                     cell.classList.remove(animationClass);
                   }, 1000);
@@ -988,20 +1665,23 @@ const CompetitiveMode = ({ onBack }) => {
       setGuessHistory(prev => [...prev, { word: guess, result }]);
       setCurrentGuess('');
       
-      // 檢查是否猜對或遊戲結束
+      // Check if guessed correctly or game over
       if (isCorrect) {
+        setTimeout(() => {
+          playSound('scoreIncrease');
+        }, result.length * 100 + 500);
         setResultModalType('win');
         setShowResultModal(true);
         setTimeout(() => {
           setShowResultModal(false);
-          // 後端會自動開始下一回合
+          // Backend will automatically start next round
         }, 1000);
       } else if (gameOver) {
         setResultModalType('lose');
         setShowResultModal(true);
         setTimeout(() => {
           setShowResultModal(false);
-          // 後端會自動開始下一回合
+          // Backend will automatically start next round
         }, 1000);
       }
     });
@@ -1011,17 +1691,17 @@ const CompetitiveMode = ({ onBack }) => {
       setTimeout(() => setErrorMessage(''), 1500);
     });
 
-    // 新增：對手猜對的通知
+    // Add: Opponent won notification
     newSocket.on('opponent_won_round', ({ opponentName, word, points }) => {
-      setErrorMessage(`🎉 對手猜對了！答案是 "${word}" (+${points} 分)`);
+      setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)`);
       setTimeout(() => setErrorMessage(''), 3000);
     });
 
     newSocket.on('round_winner', (data) => {
-      // 只更新分數，不影響當前玩家的遊戲流程
+      // Only update scores, don't affect current player's game flow
       setPlayers(data.updatedPlayers);
       
-      // 檢查是否有人達到30分
+      // Check if anyone reached 30 points
       const myScore = data.updatedPlayers[newSocket.id]?.score || 0;
       const opponentId = Object.keys(data.updatedPlayers).find(id => id !== newSocket.id);
       const opponentScore = data.updatedPlayers[opponentId]?.score || 0;
@@ -1031,6 +1711,8 @@ const CompetitiveMode = ({ onBack }) => {
           const winner = myScore >= 30 ? newSocket.id : opponentId;
           setWinnerInfo(winner);
           setViewState('gameOver');
+          // Switch back to home music when game ends
+          playBackgroundMusic('homeMusic');
         }, 2000);
       }
     });
@@ -1039,6 +1721,8 @@ const CompetitiveMode = ({ onBack }) => {
       setPlayers(data.players);
       setWinnerInfo(data.winner);
       setViewState('gameOver');
+      // Switch back to home music when game is over
+      playBackgroundMusic('homeMusic');
     });
     
     newSocket.on('error_message', (msg) => {
@@ -1047,11 +1731,12 @@ const CompetitiveMode = ({ onBack }) => {
   };
 
   const togglePause = () => {
-    // 移除暫停功能，因為沒有計時器
+    // Remove pause function, no timer available
   };
 
   const skipRound = () => {
     if (socket && roomCode && canSkip) {
+      playSound('skipButton');
       socket.emit('skip_round', { roomCode });
     }
   };
@@ -1062,18 +1747,24 @@ const CompetitiveMode = ({ onBack }) => {
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
       
-      // 檢查是否在當前回合重複輸入（只檢查當前回合的guesses，不檢查guessHistory）
+      // Check for duplicate input in current round (only check current round guesses, not guessHistory)
       const isDuplicate = guesses.some(guess => guess.word === currentGuess);
       if (isDuplicate) {
-        setErrorMessage('這個單字在本回合已經猜過了！');
+        playSound('buttonCancel');
+        setErrorMessage('WORD ALREADY GUESSED THIS ROUND!');
         setTimeout(() => setErrorMessage(''), 1500);
         return;
       }
       
+      playSound('buttonClick');
       socket.emit('submit_guess_competitive', { roomCode, guess: currentGuess });
     } else if (key === 'BACKSPACE') {
+      if (currentGuess.length > 0) {
+        playSound('buttonCancel');
+      }
       setCurrentGuess(prev => prev.slice(0, -1));
     } else if (currentGuess.length < wordLength && /^[A-Z]$/.test(key)) {
+      playSound('buttonClick');
       setCurrentGuess(prev => prev + key);
     }
   };
@@ -1092,28 +1783,34 @@ const CompetitiveMode = ({ onBack }) => {
   // UI 
   if (viewState === 'lobby') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-gray-900 p-8 pixel-border text-white relative" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
-          <button onClick={onBack} className="pixel-button absolute top-4 left-4 p-2 bg-red-600 hover:bg-red-500 pixel-border" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 animate-fade-in">
+        {/* Audio Controls */}
+        <AudioControls currentPage="home" />
+        
+        <div className="max-w-md w-full bg-gray-900 p-8 pixel-border text-white relative animate-bounce-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+          <button onClick={() => { playSound('buttonCancel'); playBackgroundMusic('homeMusic'); onBack(); }} className="pixel-button absolute top-4 left-4 p-2 bg-red-600 hover:bg-red-500 pixel-border transition-smooth hover-scale cursor-pointer" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
             <ArrowLeft size={16}/>
           </button>
-          <h2 className="text-xl font-bold mb-8 text-center flex items-center justify-center gap-2 text-yellow-400">
-            <Trophy className="text-orange-400"/> COMPETITIVE
+          <h2 className="text-xl font-bold mb-8 text-center flex items-center justify-center gap-2 text-yellow-400 animate-slide-in-top no-select">
+            <Trophy className="text-orange-400 animate-bounce"/> COMPETITIVE
           </h2>
           
-          <div className="mb-8 p-4 bg-gray-800 pixel-border" style={{ boxShadow: 'inset 2px 2px 0 rgba(0,0,0,0.5)' }}>
-            <h3 className="font-bold mb-3 flex items-center gap-2 text-blue-400 text-sm">
+          <div className="mb-8 p-4 bg-gray-800 pixel-border animate-slide-up animate-delay-100" style={{ boxShadow: 'inset 2px 2px 0 rgba(0,0,0,0.5)' }}>
+            <h3 className="font-bold mb-3 flex items-center gap-2 text-blue-400 text-sm no-select">
               <User size={16}/> CREATE ROOM
             </h3>
             <div className="flex gap-2 mb-4 justify-center">
-                {[4, 5, 6, 7].map(len => (
+                {[4, 5, 6, 7].map((len, index) => (
                     <button 
                       key={len} 
-                      onClick={() => setSelectedLength(len)} 
-                      className={`pixel-button px-3 py-1 text-xs font-bold transition-none pixel-border ${
+                      onClick={() => { playSound('buttonClick'); setSelectedLength(len); }} 
+                      className={`pixel-button px-3 py-1 text-xs font-bold transition-smooth pixel-border hover-scale animate-fade-in ${
                         selectedLength === len ? 'bg-yellow-400 text-gray-900' : 'bg-gray-700 text-white hover:bg-gray-600'
                       }`}
-                      style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                      style={{ 
+                        boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                        animationDelay: `${index * 0.1}s`
+                      }}
                     >
                       {len}
                     </button>
@@ -1121,15 +1818,15 @@ const CompetitiveMode = ({ onBack }) => {
             </div>
             <button 
               onClick={createRoom} 
-              className="pixel-button w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-none pixel-border text-xs"
+              className="pixel-button w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-smooth pixel-border text-xs hover-lift animate-slide-up animate-delay-200 cursor-pointer"
               style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
             >
               CREATE & WAIT
             </button>
           </div>
 
-          <div className="p-4 bg-gray-800 pixel-border" style={{ boxShadow: 'inset 2px 2px 0 rgba(0,0,0,0.5)' }}>
-            <h3 className="font-bold mb-3 flex items-center gap-2 text-green-400 text-sm">
+          <div className="p-4 bg-gray-800 pixel-border animate-slide-up animate-delay-300" style={{ boxShadow: 'inset 2px 2px 0 rgba(0,0,0,0.5)' }}>
+            <h3 className="font-bold mb-3 flex items-center gap-2 text-green-400 text-sm no-select">
               <Users size={16}/> JOIN ROOM
             </h3>
             <div className="flex gap-2">
@@ -1138,13 +1835,13 @@ const CompetitiveMode = ({ onBack }) => {
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value)}
                     placeholder="ROOM CODE"
-                    className="flex-1 bg-gray-700 pixel-border px-3 py-2 text-center tracking-widest uppercase text-white text-xs"
+                    className="flex-1 bg-gray-700 pixel-border px-3 py-2 text-center tracking-widest uppercase text-white text-xs transition-smooth focus:bg-gray-600 focus:outline-none cursor-text"
                     style={{ boxShadow: 'inset 2px 2px 0 rgba(0,0,0,0.5)' }}
                     maxLength={6}
                 />
                 <button 
                   onClick={joinRoom} 
-                  className="pixel-button px-4 bg-green-600 hover:bg-green-500 text-white font-bold pixel-border text-xs"
+                  className="pixel-button px-4 bg-green-600 hover:bg-green-500 text-white font-bold pixel-border text-xs transition-smooth hover-scale cursor-pointer"
                   style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
                 >
                   JOIN
@@ -1152,7 +1849,7 @@ const CompetitiveMode = ({ onBack }) => {
             </div>
           </div>
           {errorMessage && (
-            <p className="text-red-400 text-center mt-4 text-xs animate-pulse bg-red-900/30 p-2 pixel-border">
+            <p className="text-red-400 text-center mt-4 text-xs bg-red-900/30 p-2 pixel-border animate-error-shake">
               {errorMessage}
             </p>
           )}
@@ -1163,6 +1860,9 @@ const CompetitiveMode = ({ onBack }) => {
 
   if (viewState === 'waiting') {
     const exitWaiting = () => {
+      playSound('buttonCancel');
+      // Ensure home music is playing when exiting waiting room
+      playBackgroundMusic('homeMusic');
       if (socket) {
         socket.emit('leave_room', { roomCode });
         socket.disconnect();
@@ -1171,19 +1871,19 @@ const CompetitiveMode = ({ onBack }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4">
-            <div className="bg-gray-900 p-10 pixel-border text-center animate-pulse relative text-white" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
-                <Hash size={32} className="mx-auto text-yellow-400 mb-4"/>
-                <h2 className="text-lg font-bold mb-2 text-yellow-400">ROOM CODE</h2>
-                <div className="text-3xl bg-gray-800 px-6 py-4 pixel-border tracking-widest text-green-400 select-all mb-6" style={{ boxShadow: 'inset 4px 4px 0 rgba(0,0,0,0.5)' }}>
+        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 animate-fade-in">
+            <div className="bg-gray-900 p-10 pixel-border text-center relative text-white animate-bounce-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+                <Hash size={32} className="mx-auto text-yellow-400 mb-4 animate-pulse no-select"/>
+                <h2 className="text-lg font-bold mb-2 text-yellow-400 animate-slide-in-top no-select">ROOM CODE</h2>
+                <div className="text-3xl bg-gray-800 px-6 py-4 pixel-border tracking-widest text-green-400 select-all mb-6 animate-fade-in-scale animate-delay-200 selectable cursor-text" style={{ boxShadow: 'inset 4px 4px 0 rgba(0,0,0,0.5)' }}>
                     {roomCode}
                 </div>
-                <p className="text-gray-400 flex items-center justify-center gap-2 mb-6 text-xs">
+                <p className="text-gray-400 flex items-center justify-center gap-2 mb-6 text-xs animate-slide-up animate-delay-300 no-select">
                     <Users className="animate-bounce" size={16}/> WAITING FOR OPPONENT...
                 </p>
                 <button 
                   onClick={exitWaiting}
-                  className="pixel-button px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold pixel-border text-xs"
+                  className="pixel-button px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold pixel-border text-xs transition-smooth hover-lift animate-slide-up animate-delay-400 cursor-pointer"
                   style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
                 >
                   EXIT WAITING
@@ -1195,13 +1895,13 @@ const CompetitiveMode = ({ onBack }) => {
 
   if (viewState === 'countdown') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4">
-        <div className="bg-gray-900 p-16 pixel-border text-center text-white" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
-          <h2 className="text-xl font-bold mb-8 text-yellow-400">GET READY!</h2>
-          <div className="text-6xl font-bold text-green-400 animate-pulse mb-8">
+      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-4 animate-fade-in">
+        <div className="bg-gray-900 p-16 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+          <h2 className="text-xl font-bold mb-8 text-yellow-400 animate-slide-in-top no-select">GET READY!</h2>
+          <div className="text-6xl font-bold text-green-400 mb-8 animate-countdown-pulse no-select">
             {gameStartCountdown || 'GO!'}
           </div>
-          <p className="text-gray-400 text-xs">GAME STARTING...</p>
+          <p className="text-gray-400 text-xs animate-fade-in animate-delay-500 no-select">GAME STARTING...</p>
         </div>
       </div>
     );
@@ -1219,7 +1919,7 @@ const CompetitiveMode = ({ onBack }) => {
             const isCurrent = i === guesses.length;
             
             rows.push(
-                <div key={i} className="flex gap-1 justify-center">
+                <div key={i} className={`flex gap-1 justify-center animate-slide-up`} style={{ animationDelay: `${i * 0.1}s` }}>
                     {[...Array(wordLength)].map((_, j) => {
                         let letter = '';
                         let style = 'bg-gray-800 pixel-border text-white'; 
@@ -1240,14 +1940,17 @@ const CompetitiveMode = ({ onBack }) => {
                             style = 'bg-blue-600 pixel-border animate-pulse text-white';
                         } else if (!guess && isHint) {
                             letter = isHint.char;
-                            style = 'bg-purple-600 pixel-border text-purple-300';
+                            style = 'bg-purple-600 pixel-border text-purple-300 animate-bounce-in';
                         }
                         
                         return (
                           <div 
                             key={j} 
-                            className={`wordle-cell ${style} w-12 h-12 flex items-center justify-center text-lg font-bold transition-none`}
-                            style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                            className={`wordle-cell ${style} w-12 h-12 flex items-center justify-center text-lg font-bold transition-smooth hover-scale no-select cursor-help`}
+                            style={{ 
+                              boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                              animationDelay: `${(i * 0.1) + (j * 0.05)}s`
+                            }}
                           >
                             {letter}
                           </div>
@@ -1262,15 +1965,18 @@ const CompetitiveMode = ({ onBack }) => {
       const keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'], ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'], ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']];
 
       return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2">
+        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in">
+          {/* Audio Controls */}
+          <AudioControls currentPage="battle" />
+          
           <div className="flex gap-6 w-full max-w-6xl">
-            {/* 中間：主要遊戲區域 */}
+            {/* Center: Main game area */}
             <div className="flex-1 flex flex-col items-center">
-              {/* 控制按鈕區域 */}
-              <div className="w-full max-w-xl flex justify-between items-center mb-4">
+              {/* Control buttons area */}
+              <div className="w-full max-w-xl flex justify-between items-center mb-4 animate-slide-in-top">
                   <button 
                     onClick={exitGame}
-                    className="pixel-button px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold transition-none pixel-border text-xs"
+                    className="pixel-button px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer"
                     style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
                   >
                     EXIT GAME
@@ -1279,7 +1985,7 @@ const CompetitiveMode = ({ onBack }) => {
                     {canSkip && (
                       <button 
                         onClick={skipRound}
-                        className="pixel-button px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-none pixel-border text-xs"
+                        className="pixel-button px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold transition-smooth pixel-border text-xs hover-scale animate-bounce-in cursor-pointer"
                         style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
                       >
                         SKIP ROUND
@@ -1288,56 +1994,62 @@ const CompetitiveMode = ({ onBack }) => {
                   </div>
               </div>
 
-              <div className="w-full max-w-xl flex justify-between items-end mb-4 bg-gray-900 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
-                  <div className="text-center">
-                      <p className="text-xs text-gray-400">YOU</p>
-                      <p className="text-2xl font-bold text-green-400">{myScore}</p>
-                      <p className="text-xs text-gray-500">ROUND {myRound}</p>
+              <div className="w-full max-w-xl flex justify-between items-end mb-4 bg-gray-900 p-4 pixel-border animate-slide-up animate-delay-100" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+                  <div className="text-center animate-slide-in-left">
+                      <p className="text-xs text-gray-400 no-select">YOU</p>
+                      <p className="text-2xl font-bold text-green-400 no-select">{myScore}</p>
+                      <p className="text-xs text-gray-500 no-select">ROUND {myRound}</p>
                   </div>
-                  <div className="flex flex-col items-center">
-                      <div className="text-xs text-orange-400 mb-1 font-bold">
+                  <div className="flex flex-col items-center animate-fade-in-scale animate-delay-200">
+                      <div className="text-xs text-orange-400 mb-1 font-bold no-select">
                           BATTLE MODE
                       </div>
-                      <div className="text-lg bg-gray-800 px-4 py-2 pixel-border text-white" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
+                      <div className="text-lg bg-gray-800 px-4 py-2 pixel-border text-white no-select" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
                           NO TIME LIMIT
                       </div>
-                      <p className="text-xs text-yellow-300 mt-1">WIN: +{potentialPoints} PTS | FIRST TO 30 WINS!</p>
+                      <div className="text-xs text-yellow-300 mt-1 no-select text-center">
+                        <div>WIN: +{potentialPoints} PTS</div>
+                        <div>FIRST TO 30 WINS!</div>
+                      </div>
                   </div>
-                  <div className="text-center">
-                      <p className="text-xs text-gray-400">OPPONENT</p>
-                      <p className="text-2xl font-bold text-red-400">{opponentScore}</p>
-                      <p className="text-xs text-gray-500">ROUND {opponentRound}</p>
+                  <div className="text-center animate-slide-in-right">
+                      <p className="text-xs text-gray-400 no-select">OPPONENT</p>
+                      <p className="text-2xl font-bold text-red-400 no-select">{opponentScore}</p>
+                      <p className="text-xs text-gray-500 no-select">ROUND {opponentRound}</p>
                   </div>
               </div>
 
               {errorMessage && (
-                <div className={`mb-4 px-4 py-2 pixel-border font-bold animate-pulse text-xs ${
-                  errorMessage.includes('won') || errorMessage.includes('對手猜對了') ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                <div className={`mb-4 px-4 py-2 pixel-border font-bold text-xs animate-modal-slide-in ${
+                  errorMessage.includes('won') || errorMessage.includes('OPPONENT WON') ? 'bg-green-600 text-white animate-success-bounce' : 'bg-red-600 text-white animate-error-shake'
                 }`} style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>
                   {errorMessage}
                 </div>
               )}
 
-              <div className="space-y-2 mb-6 select-none relative">
+              <div className="space-y-2 mb-6 select-none relative animate-fade-in-scale animate-delay-300 no-select">
                   {roundWinner && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-10 backdrop-blur-sm pixel-border">
-                          <div className="text-lg font-bold text-yellow-400">WAITING FOR NEXT ROUND...</div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-10 backdrop-blur-sm pixel-border animate-fade-in">
+                          <div className="text-lg font-bold text-yellow-400 animate-pulse no-select">WAITING FOR NEXT ROUND...</div>
                       </div>
                   )}
                   {renderCompGrid()}
               </div>
 
-              <div className="flex flex-col gap-2 w-full max-w-xl">
+              <div className="flex flex-col gap-2 w-full max-w-xl animate-slide-in-bottom animate-delay-400">
                   {keys.map((row, i) => (
                       <div key={i} className="flex gap-1 justify-center w-full">
-                          {row.map(key => (
+                          {row.map((key, keyIndex) => (
                               <button
                                   key={key}
                                   onClick={() => handleKeyPress(key)}
-                                  className={`pixel-button h-10 font-bold text-xs flex items-center justify-center transition-none bg-gray-700 hover:bg-gray-600 text-white pixel-border ${
+                                  className={`pixel-button h-10 font-bold text-xs flex items-center justify-center transition-smooth bg-gray-700 hover:bg-gray-600 text-white pixel-border hover-scale animate-fade-in cursor-pointer ${
                                     key === 'ENTER' || key === 'BACKSPACE' ? 'flex-[1.5] text-xs' : 'flex-1'
                                   }`}
-                                  style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                                  style={{ 
+                                    boxShadow: '2px 2px 0 rgba(0,0,0,0.6)',
+                                    animationDelay: `${(i * 0.1) + (keyIndex * 0.02)}s`
+                                  }}
                               >
                                   {key === 'BACKSPACE' ? '⌫' : key}
                               </button>
@@ -1347,14 +2059,14 @@ const CompetitiveMode = ({ onBack }) => {
               </div>
             </div>
             
-            {/* 右側：字母狀態 */}
-            <div className="flex-shrink-0">
+            {/* Right side: Letter status */}
+            <div className="flex-shrink-0 animate-slide-in-right animate-delay-500">
               <LetterStatusTracker guesses={guesses} />
             </div>
           </div>
           
-          {/* 結算彈窗 */}
-          <ResultModal show={showResultModal} type={resultModalType} />
+          {/* Result modal */}
+          <ResultModal show={showResultModal} type={resultModalType} mode="competitive" />
         </div>
       );
   }
@@ -1367,33 +2079,33 @@ const CompetitiveMode = ({ onBack }) => {
       const opponentScore = players[opponentId]?.score;
 
       return (
-          <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex flex-col items-center justify-center p-4">
-              <div className="max-w-md w-full bg-gray-900 p-8 pixel-border text-center" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+          <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex flex-col items-center justify-center p-4 animate-fade-in">
+              <div className="max-w-md w-full bg-gray-900 p-8 pixel-border text-center animate-bounce-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
                   {isWinner ? (
-                      <div className="text-yellow-400 mb-4"><Trophy size={48} className="mx-auto"/></div>
+                      <div className="text-yellow-400 mb-4 animate-success-bounce"><Trophy size={48} className="mx-auto"/></div>
                   ) : (
-                      <div className="text-gray-500 mb-4"><Swords size={48} className="mx-auto"/></div>
+                      <div className="text-gray-500 mb-4 animate-error-shake"><Swords size={48} className="mx-auto"/></div>
                   )}
-                  <h2 className="text-2xl font-bold mb-2 text-yellow-400">
+                  <h2 className="text-2xl font-bold mb-2 text-yellow-400 animate-slide-in-top no-select">
                     {isWinner ? 'VICTORY!' : (winnerInfo === 'draw' ? 'DRAW!' : 'DEFEAT!')}
                   </h2>
-                  <p className="text-gray-400 mb-8 text-xs">GOOD GAME!</p>
+                  <p className="text-gray-400 mb-8 text-xs animate-fade-in animate-delay-200 no-select">GOOD GAME!</p>
                   
-                  <div className="flex justify-center gap-8 text-xl font-bold mb-8">
+                  <div className="flex justify-center gap-8 text-xl font-bold mb-8 animate-slide-up animate-delay-300">
                       <div className="text-center">
-                          <div className="text-xs text-gray-500">YOU</div>
-                          <div className={isWinner ? 'text-green-400' : 'text-gray-300'}>{myScore}</div>
+                          <div className="text-xs text-gray-500 no-select">YOU</div>
+                          <div className={`${isWinner ? 'text-green-400 animate-success-bounce' : 'text-gray-300'} no-select`}>{myScore}</div>
                       </div>
-                      <div className="text-gray-600">-</div>
+                      <div className="text-gray-600 no-select">-</div>
                       <div className="text-center">
-                          <div className="text-xs text-gray-500">OPPONENT</div>
-                          <div className={!isWinner && winnerInfo !== 'draw' ? 'text-green-400' : 'text-gray-300'}>{opponentScore}</div>
+                          <div className="text-xs text-gray-500 no-select">OPPONENT</div>
+                          <div className={`${!isWinner && winnerInfo !== 'draw' ? 'text-green-400 animate-success-bounce' : 'text-gray-300'} no-select`}>{opponentScore}</div>
                       </div>
                   </div>
 
                   <button 
-                    onClick={resetGameState} 
-                    className="pixel-button w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold pixel-border text-xs"
+                    onClick={() => { playSound('buttonClick'); playBackgroundMusic('homeMusic'); resetGameState(); }} 
+                    className="pixel-button w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold pixel-border text-xs transition-smooth hover-lift animate-slide-up animate-delay-500 cursor-pointer"
                     style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
                   >
                     BACK TO MENU
@@ -1411,12 +2123,45 @@ const CompetitiveMode = ({ onBack }) => {
 // ==========================================
 const App = () => {
   const [view, setView] = useState('home'); 
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const { playBackgroundMusic, stopBackgroundMusic } = useAudio();
+
+  // Start home music when app loads and maintain it across home/competitive views
+  useEffect(() => {
+    playBackgroundMusic('homeMusic');
+  }, []);
+
+  const handleViewChange = (newView) => {
+    setIsTransitioning(true);
+    
+    // Handle music transitions
+    if (newView === 'single') {
+      // Stop home music and start single player music
+      stopBackgroundMusic();
+      setTimeout(() => {
+        playBackgroundMusic('singlePlayerMusic');
+      }, 100);
+    } else if (newView === 'home' && view === 'single') {
+      // Coming back from single player, start home music
+      stopBackgroundMusic();
+      setTimeout(() => {
+        playBackgroundMusic('homeMusic');
+      }, 100);
+    }
+    // For home <-> competitive, don't change music at all
+    
+    setTimeout(() => {
+      setView(newView);
+      setIsTransitioning(false);
+    }, 300);
+  };
+
   return (
-    <>
-      {view === 'home' && <HomePage onSelectMode={(mode) => setView(mode)} />}
-      {view === 'single' && <SinglePlayerGame onBack={() => setView('home')} />}
-      {view === 'competitive' && <CompetitiveMode onBack={() => setView('home')} />}
-    </>
+    <div className={`transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+      {view === 'home' && <HomePage onSelectMode={handleViewChange} />}
+      {view === 'single' && <SinglePlayerGame onBack={() => handleViewChange('home')} />}
+      {view === 'competitive' && <CompetitiveMode onBack={() => handleViewChange('home')} />}
+    </div>
   );
 };
 

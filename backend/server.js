@@ -6,20 +6,59 @@ const path = require('path');
 // 新增：引入 http 和 socket.io
 const http = require('http');
 const { Server } = require("socket.io");
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+// Import models
+const Game = require('./models/Game');
+const Room = require('./models/Room');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// Environment variables
+const PORT = process.env.PORT || 3001;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/wordle-game';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// MongoDB connection
+if (MONGODB_URI.includes('mongodb')) {
+  mongoose.connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log('✅ Connected to MongoDB');
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error);
+    // 在開發環境中，如果 MongoDB 連接失敗，繼續使用內存存儲
+    if (NODE_ENV === 'development') {
+      console.log('⚠️  Continuing with in-memory storage for development');
+    } else {
+      process.exit(1);
+    }
+  });
+} else {
+  console.log('⚠️  No MongoDB URI provided, using in-memory storage');
+}
+
+// CORS configuration
+const corsOptions = {
+  origin: NODE_ENV === 'production' 
+    ? [FRONTEND_URL, 'https://garyHu951.github.io'] 
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 // 建立 HTTP Server 並綁定 Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:5173", // 允許前端連線
-    methods: ["GET", "POST"]
-  }
+  cors: corsOptions
 });
 
 // ==========================================
@@ -319,7 +358,14 @@ function checkGuess(guess, answer) {
 // 單人模式 API 區塊 (簡化版示意，請使用你原本的完整代碼)
 // ----------------------------------------------------
 function generateGameId() { return 'game_' + Date.now(); } // 單人用
-app.get('/api/health', (req, res) => res.json({status: 'ok'}));
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        environment: NODE_ENV,
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+});
 
 // 新增：單字表API
 app.get('/api/words/:length', (req, res) => {
@@ -342,13 +388,13 @@ app.post('/api/game/new', (req, res) => {
     try {
         let length = parseInt(req.body.length) || 5;
         if (!SUPPORTED_LENGTHS.includes(length)) length = 5;
-        const maxGuessesMap = { 4: 4, 5: 6, 6: 8, 7: 10 };
+        const maxGuesses = 6; // Always 6 guesses regardless of word length
         const gameId = generateGameId();
         const list = WORD_LISTS[length];
         const answer = list[Math.floor(Math.random() * list.length)];
-        const gameData = { id: gameId, answer, wordLength: length, guesses: [], gameOver: false, won: false, createdAt: new Date(), maxGuesses: maxGuessesMap[length] };
+        const gameData = { id: gameId, answer, wordLength: length, guesses: [], gameOver: false, won: false, createdAt: new Date(), maxGuesses: maxGuesses };
         singlePlayerGames.set(gameId, gameData); // 改名為 singlePlayerGames 避免衝突
-        res.json({ success: true, gameId, wordLength: length, maxGuesses: maxGuessesMap[length] });
+        res.json({ success: true, gameId, wordLength: length, maxGuesses: maxGuesses });
     } catch(e) { res.status(500).json({error: 'err'}); }
 });
 app.post('/api/game/:id/guess', (req, res) => {
@@ -363,9 +409,31 @@ app.post('/api/game/:id/guess', (req, res) => {
         if (!VALID_WORDS.has(normalizedGuess)) return res.status(400).json({success: false, error: 'Not in word list!'});
         const result = checkGuess(normalizedGuess, game.answer);
         game.guesses.push({word: normalizedGuess, result});
-        if(normalizedGuess === game.answer) { game.won = true; game.gameOver = true; }
-        else if(game.guesses.length >= game.maxGuesses) { game.gameOver = true; }
-        res.json({ success: true, result, guesses: game.guesses, gameOver: game.gameOver, won: game.won, answer: game.gameOver ? game.answer : null, remainingGuesses: game.maxGuesses - game.guesses.length, message: game.won ? 'You Won!' : '' });
+        if(normalizedGuess === game.answer) { 
+            game.won = true; 
+            game.gameOver = true; 
+        } else if(game.guesses.length >= game.maxGuesses) { 
+            game.gameOver = true; 
+        }
+        
+        // Prepare response message
+        let message = '';
+        if (game.won) {
+            message = 'You Won!';
+        } else if (game.gameOver) {
+            message = `Game Over! The word was: ${game.answer}`;
+        }
+        
+        res.json({ 
+            success: true, 
+            result, 
+            guesses: game.guesses, 
+            gameOver: game.gameOver, 
+            won: game.won, 
+            answer: game.gameOver ? game.answer : null, 
+            remainingGuesses: game.maxGuesses - game.guesses.length, 
+            message: message 
+        });
     } catch(e) { res.status(500).json({error: 'err'}); }
 });
 // ----------------------------------------------------

@@ -15,12 +15,12 @@ const WordleGame = () => {
   const [serverConnected, setServerConnected] = useState(false);
   const [remainingGuesses, setRemainingGuesses] = useState(6);
 
-  // 檢查伺服器連接
+  // Check server connection
   useEffect(() => {
     checkServerHealth();
   }, []);
 
-  // 初始化遊戲
+  // Initialize game
   useEffect(() => {
     if (serverConnected) {
       startNewGame();
@@ -33,12 +33,12 @@ const WordleGame = () => {
       const data = await response.json();
       if (data.status === 'ok') {
         setServerConnected(true);
-        setMessage('✅ 已連接到伺服器');
+        setMessage('✅ Connected to server');
         setTimeout(() => setMessage(''), 2000);
       }
     } catch (error) {
       setServerConnected(false);
-      setMessage('❌ 無法連接到伺服器，請確認後端已啟動');
+      setMessage('❌ Cannot connect to server, please ensure backend is running');
     }
   };
 
@@ -64,10 +64,10 @@ const WordleGame = () => {
         setAnswer('');
         setRemainingGuesses(6);
       } else {
-        setMessage('創建遊戲失敗：' + data.error);
+        setMessage('Game creation failed: ' + data.error);
       }
     } catch (error) {
-      setMessage('❌ 無法連接到伺服器');
+      setMessage('❌ Cannot connect to server');
       setServerConnected(false);
     }
     setLoading(false);
@@ -78,7 +78,7 @@ const WordleGame = () => {
 
     if (key === 'ENTER') {
       if (currentGuess.length !== 5) {
-        setMessage('單字必須是 5 個字母');
+        setMessage('Word must be 5 letters');
         setTimeout(() => setMessage(''), 2000);
         return;
       }
@@ -115,7 +115,7 @@ const WordleGame = () => {
           setTimeout(() => setMessage(''), 2000);
         }
       } catch (error) {
-        setMessage('提交失敗，請檢查網路連接');
+        setMessage('Submit failed, please check network connection');
         setServerConnected(false);
       }
       setLoading(false);
@@ -190,16 +190,16 @@ const WordleGame = () => {
       <div className="max-w-lg w-full bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-6">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">🎮 WORDLE</h1>
-          <p className="text-gray-600">猜出 5 個字母的英文單字</p>
+          <p className="text-gray-600">Guess the 5-letter English word</p>
           <div className={`mt-2 flex items-center justify-center gap-2 text-xs ${
             serverConnected ? 'text-green-600' : 'text-red-600'
           }`}>
             {serverConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-            <span>{serverConnected ? '後端已連接' : '後端未連接'}</span>
+            <span>{serverConnected ? 'Backend Connected' : 'Backend Disconnected'}</span>
           </div>
           {gameId && (
             <div className="mt-1 text-xs text-gray-500">
-              遊戲 ID: {gameId.slice(0, 20)}...
+              Game ID: {gameId.slice(0, 20)}...
             </div>
           )}
         </div>
@@ -207,16 +207,16 @@ const WordleGame = () => {
         {!serverConnected && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-800 mb-2">
-              ⚠️ 無法連接到後端伺服器
+              ⚠️ Cannot connect to backend server
             </p>
             <p className="text-xs text-red-600 mb-2">
-              請確認後端伺服器已啟動於 http://localhost:3001
+              Please ensure backend server is running at http://localhost:3001
             </p>
             <button
               onClick={checkServerHealth}
               className="text-xs bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
             >
-              重新連接
+              Reconnect
             </button>
           </div>
         )}
@@ -234,13 +234,13 @@ const WordleGame = () => {
         {loading && (
           <div className="mb-4 text-center text-gray-500">
             <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-            <p className="text-xs mt-2">處理中...</p>
+            <p className="text-xs mt-2">Processing...</p>
           </div>
         )}
 
         <div className="mb-4 flex justify-between text-sm text-gray-600">
-          <span>已猜測: {guesses.length}/6</span>
-          <span>剩餘機會: {remainingGuesses}</span>
+          <span>Guessed: {guesses.length}/6</span>
+          <span>Remaining: {remainingGuesses}</span>
         </div>
 
         <div className="mb-6 space-y-1">
@@ -274,28 +274,28 @@ const WordleGame = () => {
           className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RotateCcw size={20} />
-          開始新遊戲
+          New Game
         </button>
 
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2">
             <AlertCircle size={18} />
-            遊戲規則
+            Game Rules
           </h3>
           <ul className="text-sm text-gray-600 space-y-1">
-            <li>🟩 <strong>綠色</strong>：字母正確且位置正確</li>
-            <li>🟨 <strong>黃色</strong>：字母正確但位置錯誤</li>
-            <li>⬜ <strong>灰色</strong>：字母不在答案中</li>
-            <li>🎯 你有 6 次機會猜出正確答案</li>
+            <li>🟩 <strong>Green</strong>: Correct letter in correct position</li>
+            <li>🟨 <strong>Yellow</strong>: Correct letter in wrong position</li>
+            <li>⬜ <strong>Gray</strong>: Letter not in the answer</li>
+            <li>🎯 You have 6 chances to guess the correct answer</li>
           </ul>
         </div>
 
         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
           <p className="text-xs text-blue-800">
-            <strong>🔧 技術架構：</strong><br/>
-            <Server className="inline" size={12} /> 後端: Node.js + Express (Port 3001)<br/>
-            ⚛️ 前端: React + Tailwind CSS<br/>
-            🔗 API: RESTful 架構
+            <strong>🔧 Tech Stack:</strong><br/>
+            <Server className="inline" size={12} /> Backend: Node.js + Express (Port 3001)<br/>
+            ⚛️ Frontend: React + Tailwind CSS<br/>
+            🔗 API: RESTful Architecture
           </p>
         </div>
       </div>
