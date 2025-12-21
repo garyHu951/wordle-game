@@ -30,7 +30,7 @@
 ## 🚀 線上體驗
 
 - **遊戲網址**: [https://garyHu951.github.io/wordle-game](https://garyHu951.github.io/wordle-game)
-- **API 服務**: [https://wordle-game-57ta.onrender.com](https://wordle-game-57ta.onrender.com)
+- **API 服務**: [https://wordle-game-backend-v2.onrender.com](https://wordle-game-backend-v2.onrender.com)
 
 ## 🛠️ 技術架構
 
