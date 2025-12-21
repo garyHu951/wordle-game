@@ -3,6 +3,7 @@ services:
     name: wordle-game-backend
     env: node
     plan: free
+    region: oregon
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -10,15 +11,7 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: MONGODB_URI
-        fromDatabase:
-          name: wordle-mongodb
-          property: connectionString
       - key: FRONTEND_URL
         value: https://garyHu951.github.io/wordle-game
-
-databases:
-  - name: wordle-mongodb
-    databaseName: wordle-game
-    user: wordle-user
-    plan: free
+      - key: JWT_SECRET
+        value: wordle-game-secret-key-2024-gary
