@@ -21,26 +21,23 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/wordle
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// MongoDB connection
-if (MONGODB_URI.includes('mongodb')) {
+// MongoDB connection (optional)
+if (MONGODB_URI && MONGODB_URI.includes('mongodb') && NODE_ENV === 'production') {
   mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // 5 second timeout
+    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
   })
   .then(() => {
     console.log('✅ Connected to MongoDB');
   })
   .catch((error) => {
     console.error('❌ MongoDB connection error:', error);
-    // 在開發環境中，如果 MongoDB 連接失敗，繼續使用內存存儲
-    if (NODE_ENV === 'development') {
-      console.log('⚠️  Continuing with in-memory storage for development');
-    } else {
-      process.exit(1);
-    }
+    console.log('⚠️  Continuing with in-memory storage');
   });
 } else {
-  console.log('⚠️  No MongoDB URI provided, using in-memory storage');
+  console.log('⚠️  Using in-memory storage (no MongoDB configured)');
 }
 
 // CORS configuration
@@ -439,6 +436,19 @@ app.post('/api/game/:id/guess', (req, res) => {
 // ----------------------------------------------------
 
 // 最後啟動 Server (注意是用 server.listen 而不是 app.listen)
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${NODE_ENV}`);
+  console.log(`🔗 CORS allowed origins: ${corsOptions.origin}`);
+}).on('error', (err) => {
+  console.error('❌ Server failed to start:', err);
+  process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('✅ Process terminated');
+  });
 });
