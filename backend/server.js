@@ -43,7 +43,7 @@ if (MONGODB_URI && MONGODB_URI.includes('mongodb') && NODE_ENV === 'production')
 // CORS configuration
 const corsOptions = {
   origin: NODE_ENV === 'production' 
-    ? [FRONTEND_URL, 'https://garyHu951.github.io'] 
+    ? [FRONTEND_URL, 'https://garyHu951.github.io', 'https://garyHu951.github.io/wordle-game'] 
     : ['http://localhost:5173', 'http://127.0.0.1:5173'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
