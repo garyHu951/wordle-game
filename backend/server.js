@@ -42,9 +42,28 @@ if (MONGODB_URI && MONGODB_URI.includes('mongodb') && NODE_ENV === 'production')
 
 // CORS configuration
 const corsOptions = {
-  origin: NODE_ENV === 'production' 
-    ? [FRONTEND_URL, 'https://garyHu951.github.io', 'https://garyHu951.github.io/wordle-game'] 
-    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = NODE_ENV === 'production' 
+      ? [
+          FRONTEND_URL,
+          'https://garyHu951.github.io',
+          'https://garyHu951.github.io/wordle-game',
+          'https://garyhu951.github.io',
+          'https://garyhu951.github.io/wordle-game'
+        ]
+      : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+    
+    // Check if origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 };
