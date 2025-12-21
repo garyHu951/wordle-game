@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { RotateCcw, Wifi, WifiOff, User, Swords, ArrowLeft, Trophy, Info, Clock, Users, Hash } from 'lucide-react';
 import io from 'socket.io-client';
 
@@ -415,13 +415,180 @@ ensureAnimationStyles();
 // ==========================================
 // 0. Word List Component - Pixel Style
 // ==========================================
+// Search Component - Optimized for performance
+const WordSearch = React.memo(({ onSearch, placeholder = "Search words..." }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const debounceRef = useRef(null);
+
+  const handleSearch = useCallback((value) => {
+    setSearchTerm(value);
+    
+    // 清除之前的防抖定時器
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // 設置新的防抖定時器
+    debounceRef.current = setTimeout(() => {
+      onSearch(value.toLowerCase().trim());
+    }, 300);
+  }, [onSearch]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="mb-4 animate-slide-up animate-delay-150">
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => handleSearch(e.target.value)}
+        placeholder={placeholder}
+        className="w-full p-2 bg-gray-700 pixel-border text-white text-xs placeholder-gray-400 focus:bg-gray-600 transition-smooth"
+        style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+      />
+    </div>
+  );
+});
+
+WordSearch.displayName = 'WordSearch';
+
+// Word Item Component - Memoized for performance
+const WordItem = React.memo(({ word, index, letterIndex }) => {
+  return (
+    <div 
+      className="px-2 py-2 bg-gray-700 pixel-border text-center text-xs text-green-400 hover:bg-gray-600 transition-smooth hover-lift selectable cursor-text" 
+      style={{ 
+        boxShadow: '2px 2px 0 rgba(0,0,0,0.4)'
+      }}
+    >
+      {word}
+    </div>
+  );
+});
+
+WordItem.displayName = 'WordItem';
+
+// Letter Group Component - Memoized for performance
+const LetterGroup = React.memo(({ 
+  letter, 
+  letterWords, 
+  totalWords, 
+  onLoadMore, 
+  letterIndex 
+}) => {
+  const hasMore = onLoadMore && totalWords > letterWords.length;
+  
+  return (
+    <div className="mb-4" style={{ animationDelay: `${letterIndex * 0.02}s` }}>
+      <h4 className="text-sm font-bold text-yellow-400 mb-2 sticky top-0 bg-gray-800 py-1 border-b-2 border-yellow-400 z-10">
+        {letter} ({letterWords.length}
+        {hasMore && ` / ${totalWords}`})
+      </h4>
+      <div className="grid grid-cols-2 gap-2">
+        {letterWords.map((word, index) => (
+          <WordItem 
+            key={`${letter}-${index}`}
+            word={word}
+            index={index}
+            letterIndex={letterIndex}
+          />
+        ))}
+      </div>
+      
+      {hasMore && (
+        <button
+          onClick={onLoadMore}
+          className="w-full mt-2 p-2 bg-blue-600 hover:bg-blue-500 pixel-border text-white text-xs font-bold transition-smooth hover-scale cursor-pointer"
+          style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+        >
+          LOAD MORE {letter} WORDS (+{Math.min(100, totalWords - letterWords.length)})
+        </button>
+      )}
+    </div>
+  );
+});
+
+LetterGroup.displayName = 'LetterGroup';
+
 const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) => {
   const [words, setWords] = useState({});
   const [loading, setLoading] = useState(false);
+  const [displayedWords, setDisplayedWords] = useState({}); // 當前顯示的單字
+  const [loadedLetters, setLoadedLetters] = useState(new Set()); // 已加載的字母
+  const [letterGroups, setLetterGroups] = useState({}); // 緩存字母分組
+  const [searchTerm, setSearchTerm] = useState(''); // 搜索詞
+  const [filteredWords, setFilteredWords] = useState({}); // 過濾後的單字
   const { playSound } = useAudio();
 
-  const fetchWords = async (length) => {
-    if (words[length]) return;
+  // 配置常數
+  const WORDS_PER_LETTER_LIMIT = 100;
+  const INITIAL_LETTERS_TO_LOAD = 5;
+  const LETTERS_PER_LOAD = 3;
+  const SEARCH_RESULTS_LIMIT = 200; // 搜索結果限制
+
+  // 使用 useMemo 緩存字母分組，避免重複計算
+  const getLetterGroups = useMemo(() => {
+    return (allWords) => {
+      const groups = {};
+      const letters = [];
+      
+      for (let i = 0; i < 26; i++) {
+        const letter = String.fromCharCode(65 + i);
+        const wordsForLetter = allWords.filter(word => 
+          word.toUpperCase().startsWith(letter)
+        );
+        if (wordsForLetter.length > 0) {
+          groups[letter] = wordsForLetter;
+          letters.push(letter);
+        }
+      }
+      
+      return { groups, letters };
+    };
+  }, []);
+
+  // 搜索功能
+  const handleSearch = useCallback((term) => {
+    setSearchTerm(term);
+    
+    if (!term || !words[selectedLength]) {
+      setFilteredWords({});
+      return;
+    }
+
+    const allWords = words[selectedLength];
+    const matchedWords = allWords
+      .filter(word => word.toLowerCase().includes(term))
+      .slice(0, SEARCH_RESULTS_LIMIT); // 限制搜索結果數量
+
+    // 按字母分組搜索結果
+    const searchGroups = {};
+    matchedWords.forEach(word => {
+      const firstLetter = word.charAt(0).toUpperCase();
+      if (!searchGroups[firstLetter]) {
+        searchGroups[firstLetter] = [];
+      }
+      searchGroups[firstLetter].push(word);
+    });
+
+    setFilteredWords({ [selectedLength]: searchGroups });
+  }, [words, selectedLength, SEARCH_RESULTS_LIMIT]);
+
+  const fetchWords = useCallback(async (length) => {
+    if (words[length]) {
+      // 如果已經有數據，直接使用緩存的分組
+      if (!displayedWords[length] && !searchTerm) {
+        const { groups, letters } = letterGroups[length] || getLetterGroups(words[length]);
+        loadInitialLettersFromGroups(groups, letters, length);
+      }
+      return;
+    }
     
     setLoading(true);
     try {
@@ -435,6 +602,19 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
       
       if (data.success) {
         setWords(prev => ({ ...prev, [length]: data.words }));
+        
+        // 計算並緩存字母分組
+        const { groups, letters } = getLetterGroups(data.words);
+        setLetterGroups(prev => ({ ...prev, [length]: { groups, letters } }));
+        
+        // 重置顯示狀態
+        setDisplayedWords(prev => ({ ...prev, [length]: {} }));
+        setLoadedLetters(new Set());
+        setSearchTerm('');
+        setFilteredWords({});
+        
+        // 初始加載前幾個字母
+        loadInitialLettersFromGroups(groups, letters, length);
       } else {
         console.error('API returned success: false', data);
       }
@@ -442,24 +622,155 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
       console.error('Failed to fetch words:', error);
     }
     setLoading(false);
-  };
+  }, [words, displayedWords, letterGroups, getLetterGroups, searchTerm]);
+
+  // 從緩存的分組中加載初始字母
+  const loadInitialLettersFromGroups = useCallback((groups, letters, length) => {
+    const initialLetters = letters.slice(0, INITIAL_LETTERS_TO_LOAD);
+    const initialDisplayed = {};
+    
+    initialLetters.forEach(letter => {
+      const wordsForLetter = groups[letter];
+      initialDisplayed[letter] = wordsForLetter.slice(0, WORDS_PER_LETTER_LIMIT);
+    });
+
+    setDisplayedWords(prev => ({ ...prev, [length]: initialDisplayed }));
+    setLoadedLetters(new Set(initialLetters));
+  }, [INITIAL_LETTERS_TO_LOAD, WORDS_PER_LETTER_LIMIT]);
+
+  // 使用 useCallback 優化函數，避免不必要的重新創建
+  const loadMoreLetters = useCallback(() => {
+    if (!letterGroups[selectedLength] || searchTerm) return;
+
+    const { groups, letters } = letterGroups[selectedLength];
+    const currentDisplayed = displayedWords[selectedLength] || {};
+    
+    // 找到下一批要加載的字母
+    const nextLetters = letters.filter(letter => !loadedLetters.has(letter));
+    const lettersToLoad = nextLetters.slice(0, LETTERS_PER_LOAD);
+
+    if (lettersToLoad.length === 0) return;
+
+    const newDisplayed = { ...currentDisplayed };
+    lettersToLoad.forEach(letter => {
+      const wordsForLetter = groups[letter];
+      newDisplayed[letter] = wordsForLetter.slice(0, WORDS_PER_LETTER_LIMIT);
+    });
+
+    setDisplayedWords(prev => ({ ...prev, [selectedLength]: newDisplayed }));
+    setLoadedLetters(prev => new Set([...prev, ...lettersToLoad]));
+  }, [selectedLength, letterGroups, displayedWords, loadedLetters, searchTerm, LETTERS_PER_LOAD, WORDS_PER_LETTER_LIMIT]);
+
+  // 為特定字母加載更多單字
+  const loadMoreWordsForLetter = useCallback((letter) => {
+    if (!letterGroups[selectedLength] || searchTerm) return;
+
+    const { groups } = letterGroups[selectedLength];
+    const currentDisplayed = displayedWords[selectedLength] || {};
+    const currentWordsForLetter = currentDisplayed[letter] || [];
+    
+    const allWordsForLetter = groups[letter];
+    const nextWords = allWordsForLetter.slice(
+      currentWordsForLetter.length, 
+      currentWordsForLetter.length + WORDS_PER_LETTER_LIMIT
+    );
+
+    if (nextWords.length === 0) return;
+
+    setDisplayedWords(prev => ({
+      ...prev,
+      [selectedLength]: {
+        ...prev[selectedLength],
+        [letter]: [...currentWordsForLetter, ...nextWords]
+      }
+    }));
+  }, [selectedLength, letterGroups, displayedWords, searchTerm, WORDS_PER_LETTER_LIMIT]);
+
+  // 清除搜索
+  const clearSearch = useCallback(() => {
+    setSearchTerm('');
+    setFilteredWords({});
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchWords(selectedLength);
     }
-  }, [isOpen, selectedLength]);
+  }, [isOpen, selectedLength, fetchWords]);
 
-  const handleLengthChange = (len) => {
+  const handleLengthChange = useCallback((len) => {
     playSound('buttonClick');
     onLengthChange(len);
-    fetchWords(len);
-  };
+    clearSearch(); // 切換長度時清除搜索
+  }, [playSound, onLengthChange, clearSearch]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     playSound('buttonCancel');
+    clearSearch(); // 關閉時清除搜索
     onClose();
-  };
+  }, [playSound, onClose, clearSearch]);
+
+  // 使用 useMemo 緩存統計數據
+  const stats = useMemo(() => {
+    if (!words[selectedLength]) {
+      return { displayed: 0, total: 0, isSearching: false };
+    }
+    
+    const total = words[selectedLength].length;
+    const isSearching = !!searchTerm;
+    
+    if (isSearching && filteredWords[selectedLength]) {
+      const searchDisplayed = Object.values(filteredWords[selectedLength]).reduce(
+        (sum, letterWords) => sum + letterWords.length, 0
+      );
+      return { displayed: searchDisplayed, total, isSearching };
+    }
+    
+    if (displayedWords[selectedLength]) {
+      const displayed = Object.values(displayedWords[selectedLength]).reduce(
+        (sum, letterWords) => sum + letterWords.length, 0
+      );
+      return { displayed, total, isSearching };
+    }
+    
+    return { displayed: 0, total, isSearching };
+  }, [words, displayedWords, filteredWords, selectedLength, searchTerm]);
+
+  // 使用 useMemo 緩存字母組列表
+  const letterGroupsList = useMemo(() => {
+    const isSearching = !!searchTerm;
+    const sourceData = isSearching ? filteredWords[selectedLength] : displayedWords[selectedLength];
+    
+    if (!sourceData) return [];
+
+    if (isSearching) {
+      // 搜索模式：顯示所有匹配的結果
+      return Object.entries(sourceData).map(([letter, letterWords], index) => ({
+        letter,
+        letterWords,
+        totalWords: letterWords.length, // 搜索模式下不顯示總數
+        index,
+        isSearchResult: true
+      }));
+    } else {
+      // 正常模式：顯示分頁加載的結果
+      if (!letterGroups[selectedLength]) return [];
+      
+      const { groups } = letterGroups[selectedLength];
+      return Object.entries(sourceData).map(([letter, letterWords], index) => ({
+        letter,
+        letterWords,
+        totalWords: groups[letter]?.length || 0,
+        index,
+        isSearchResult: false
+      }));
+    }
+  }, [displayedWords, filteredWords, letterGroups, selectedLength, searchTerm]);
+
+  const hasMoreLetters = useMemo(() => {
+    if (searchTerm || !letterGroups[selectedLength]) return false;
+    return loadedLetters.size < letterGroups[selectedLength].letters.length;
+  }, [letterGroups, selectedLength, loadedLetters, searchTerm]);
 
   return (
     <div className={`fixed top-0 right-0 h-full w-96 bg-gray-900 pixel-border transform transition-all duration-500 ease-in-out z-50 ${
@@ -484,7 +795,7 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
             <button
               key={len}
               onClick={() => handleLengthChange(len)}
-              className={`pixel-button px-3 py-2 text-xs font-bold transition-smooth pixel-border hover-scale animate-slide-up ${
+              className={`pixel-button px-3 py-2 text-xs font-bold transition-smooth pixel-border hover-scale ${
                 selectedLength === len 
                   ? 'bg-yellow-400 text-gray-900' 
                   : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -498,6 +809,41 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
             </button>
           ))}
         </div>
+
+        {/* 搜索框 */}
+        <WordSearch 
+          onSearch={handleSearch}
+          placeholder={`Search ${selectedLength}-letter words...`}
+        />
+
+        {/* 顯示統計信息 */}
+        {stats.total > 0 && (
+          <div className="mb-4 p-2 bg-gray-800 pixel-border text-center text-xs animate-fade-in" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.4)' }}>
+            <div className="text-green-400 font-bold">
+              {stats.isSearching ? (
+                <>FOUND: {stats.displayed.toLocaleString()} MATCHES</>
+              ) : (
+                <>SHOWING: {stats.displayed.toLocaleString()} / {stats.total.toLocaleString()} WORDS</>
+              )}
+            </div>
+            {!stats.isSearching && stats.displayed < stats.total && (
+              <div className="text-yellow-400 mt-1">
+                {((stats.displayed / stats.total) * 100).toFixed(1)}% LOADED
+              </div>
+            )}
+            {stats.isSearching && searchTerm && (
+              <div className="text-blue-400 mt-1">
+                SEARCH: "{searchTerm}"
+                <button 
+                  onClick={clearSearch}
+                  className="ml-2 text-red-400 hover:text-red-300 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="flex-1 overflow-y-auto bg-gray-800 p-4 pixel-border animate-fade-in-scale animate-delay-200" style={{ boxShadow: 'inset 4px 4px 0 rgba(0,0,0,0.5)' }}>
           {loading ? (
@@ -505,40 +851,39 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
               <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-2"></div>
               LOADING...
             </div>
-          ) : words[selectedLength] ? (
+          ) : letterGroupsList.length > 0 ? (
             <div className="space-y-4">
-              {Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)).map((letter, letterIndex) => {
-                const wordsStartingWithLetter = words[selectedLength].filter(word => 
-                  word.toUpperCase().startsWith(letter)
-                );
-                
-                if (wordsStartingWithLetter.length === 0) return null;
-                
-                return (
-                  <div key={letter} className="mb-4 animate-slide-up" style={{ animationDelay: `${letterIndex * 0.02}s` }}>
-                    <h4 className="text-sm font-bold text-yellow-400 mb-2 sticky top-0 bg-gray-800 py-1 border-b-2 border-yellow-400">
-                      {letter} ({wordsStartingWithLetter.length})
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {wordsStartingWithLetter.map((word, index) => (
-                        <div 
-                          key={index} 
-                          className="px-2 py-2 bg-gray-700 pixel-border text-center text-xs text-green-400 hover:bg-gray-600 transition-smooth hover-lift animate-fade-in selectable cursor-text" 
-                          style={{ 
-                            boxShadow: '2px 2px 0 rgba(0,0,0,0.4)',
-                            animationDelay: `${(letterIndex * 0.02) + (index * 0.01)}s`
-                          }}
-                        >
-                          {word}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              {letterGroupsList.map(({ letter, letterWords, totalWords, index, isSearchResult }) => (
+                <LetterGroup
+                  key={`${letter}-${isSearchResult ? 'search' : 'normal'}`}
+                  letter={letter}
+                  letterWords={letterWords}
+                  totalWords={isSearchResult ? letterWords.length : totalWords}
+                  onLoadMore={isSearchResult ? null : () => loadMoreWordsForLetter(letter)}
+                  letterIndex={index}
+                />
+              ))}
+              
+              {/* 加載更多字母的按鈕 */}
+              {hasMoreLetters && (
+                <div className="text-center py-4">
+                  <button
+                    onClick={loadMoreLetters}
+                    className="pixel-button px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold transition-smooth hover-scale cursor-pointer"
+                    style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                  >
+                    LOAD MORE LETTERS ({letterGroups[selectedLength]?.letters.length - loadedLetters.size} LEFT)
+                  </button>
+                </div>
+              )}
+              
               <div className="text-center text-gray-500 text-xs mt-4 py-4 border-t-2 border-gray-700 animate-fade-in animate-delay-500">
-                TOTAL: {words[selectedLength].length} WORDS
+                TOTAL: {stats.total.toLocaleString()} WORDS
               </div>
+            </div>
+          ) : stats.isSearching ? (
+            <div className="text-center text-yellow-400 py-8 text-xs">
+              NO MATCHES FOUND FOR "{searchTerm}"
             </div>
           ) : (
             <div className="text-center text-red-400 py-8 text-xs animate-error-shake">ERROR: CANNOT LOAD</div>
