@@ -4,11 +4,11 @@ import io from 'socket.io-client';
 
 // Environment-based API URLs
 const API_URL = import.meta.env.PROD 
-  ? 'https://wordle-game-57ta.onrender.com/api'
+  ? 'https://wordle-game-backend-v2.onrender.com/api'
   : 'http://localhost:3001/api';
 
 const SOCKET_URL = import.meta.env.PROD 
-  ? 'https://wordle-game-57ta.onrender.com'
+  ? 'https://wordle-game-backend-v2.onrender.com'
   : 'http://localhost:3001';
 
 // ==========================================
