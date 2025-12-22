@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
     // 檢查長度
     if (normalizedGuess.length !== room.wordLength) return;
     if (!VALID_WORDS.has(normalizedGuess)) {
-       socket.emit('guess_error', '不在字典中');
+       socket.emit('guess_error', 'Word not in dictionary');
        return;
     }
 
@@ -345,13 +345,99 @@ io.on('connection', (socket) => {
     socket.leave(roomCode);
   });
 
+  // 6. 暫停遊戲
+  socket.on('pause_game', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+    
+    if (!room.pauseRequests) {
+      room.pauseRequests = new Set();
+    }
+    
+    room.pauseRequests.add(socket.id);
+    
+    // 檢查是否雙方都請求暫停
+    const playerIds = Object.keys(room.players);
+    if (room.pauseRequests.size === playerIds.length) {
+      room.isPaused = true;
+      io.to(roomCode).emit('game_paused', {
+        message: 'Game paused by mutual agreement'
+      });
+    } else {
+      // 通知對手有人想暫停
+      const opponentId = playerIds.find(id => id !== socket.id);
+      if (opponentId) {
+        io.to(opponentId).emit('pause_requested', {
+          message: 'Opponent requested to pause the game'
+        });
+      }
+    }
+  });
+
+  // 7. 繼續遊戲
+  socket.on('resume_game', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room || !room.isPaused) return;
+    
+    if (!room.resumeRequests) {
+      room.resumeRequests = new Set();
+    }
+    
+    room.resumeRequests.add(socket.id);
+    
+    // 檢查是否雙方都請求繼續
+    const playerIds = Object.keys(room.players);
+    if (room.resumeRequests.size === playerIds.length) {
+      // 3秒倒計時後繼續
+      let countdown = 3;
+      io.to(roomCode).emit('resume_countdown', { countdown });
+      
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          io.to(roomCode).emit('resume_countdown', { countdown });
+        } else {
+          clearInterval(countdownInterval);
+          room.isPaused = false;
+          room.pauseRequests = new Set();
+          room.resumeRequests = new Set();
+          io.to(roomCode).emit('game_resumed', {
+            message: 'Game resumed!'
+          });
+        }
+      }, 1000);
+    } else {
+      // 通知對手有人想繼續
+      const opponentId = playerIds.find(id => id !== socket.id);
+      if (opponentId) {
+        io.to(opponentId).emit('resume_requested', {
+          message: 'Opponent requested to resume the game'
+        });
+      }
+    }
+  });
+
   // 5. 跳過回合
   socket.on('skip_round', ({ roomCode }) => {
     const room = rooms[roomCode];
     if (!room) return;
     
-    // 為該玩家開始下一回合（不影響其他玩家）
-    startRoundForPlayer(roomCode, socket.id);
+    // 獲取當前回合的答案
+    const currentRound = room.playerRounds[socket.id] || 1;
+    const currentAnswer = room.roundWords[currentRound];
+    
+    // 先發送當前答案
+    if (currentAnswer) {
+      socket.emit('round_skipped', {
+        answer: currentAnswer,
+        message: `Round ${currentRound} skipped. Answer was: ${currentAnswer}`
+      });
+    }
+    
+    // 1.5秒後為該玩家開始下一回合
+    setTimeout(() => {
+      startRoundForPlayer(roomCode, socket.id);
+    }, 1500);
   });
 
   socket.on('disconnect', () => {

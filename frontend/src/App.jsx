@@ -1245,6 +1245,7 @@ const SinglePlayerGame = ({ onBack }) => {
   const [remainingGuesses, setRemainingGuesses] = useState(6); // Fixed to 6 guesses
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
+  const [isPausedSingle, setIsPausedSingle] = useState(false); // 單人模式暫停狀態
   const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   useEffect(() => { checkServerHealth(); }, []);
@@ -1291,7 +1292,7 @@ const SinglePlayerGame = ({ onBack }) => {
   };
   
   const handleKeyPress = async (key) => {
-    if (gameOver || loading || !serverConnected) return;
+    if (gameOver || loading || !serverConnected || isPausedSingle) return; // 添加暫停檢查
     
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) { 
@@ -1431,9 +1432,15 @@ const SinglePlayerGame = ({ onBack }) => {
   };
   
   useEffect(() => {
-    const handleKeyDown = (e) => { if (e.key === 'Enter') handleKeyPress('ENTER'); else if (e.key === 'Backspace') handleKeyPress('BACKSPACE'); else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase()); };
-    window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentGuess, gameOver, loading]);
+    const handleKeyDown = (e) => { 
+      if (isPausedSingle) return; // 添加暫停檢查
+      if (e.key === 'Enter') handleKeyPress('ENTER'); 
+      else if (e.key === 'Backspace') handleKeyPress('BACKSPACE'); 
+      else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase()); 
+    };
+    window.addEventListener('keydown', handleKeyDown); 
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentGuess, gameOver, loading, isPausedSingle]); // 添加isPausedSingle依賴
 
   const handleBack = () => {
     playSound('buttonCancel');
@@ -1600,6 +1607,9 @@ const CompetitiveMode = ({ onBack }) => {
   const [gameStartCountdown, setGameStartCountdown] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
+  const [pauseRequested, setPauseRequested] = useState(false);
+  const [resumeRequested, setResumeRequested] = useState(false);
+  const [resumeCountdown, setResumeCountdown] = useState(0);
 
   // Scoreboard
   const [guesses, setGuesses] = useState([]);
@@ -1824,6 +1834,47 @@ const CompetitiveMode = ({ onBack }) => {
       newSocket.on('current_answer', ({ answer }) => {
         setCurrentAnswer(answer);
         setShowAnswer(true);
+      });
+
+      // 添加跳過回合事件
+      newSocket.on('round_skipped', ({ answer, message }) => {
+        setCurrentAnswer(answer);
+        setShowAnswer(true);
+        setErrorMessage(message);
+        setTimeout(() => {
+          setErrorMessage('');
+          setShowAnswer(false);
+        }, 2000);
+      });
+
+      // 添加暫停相關事件
+      newSocket.on('pause_requested', ({ message }) => {
+        setPauseRequested(true);
+        setErrorMessage(message);
+      });
+
+      newSocket.on('game_paused', ({ message }) => {
+        setIsPaused(true);
+        setPauseRequested(false);
+        setErrorMessage(message);
+      });
+
+      newSocket.on('resume_requested', ({ message }) => {
+        setResumeRequested(true);
+        setErrorMessage(message);
+      });
+
+      newSocket.on('resume_countdown', ({ countdown }) => {
+        setResumeCountdown(countdown);
+        setErrorMessage(`Game resuming in ${countdown}...`);
+      });
+
+      newSocket.on('game_resumed', ({ message }) => {
+        setIsPaused(false);
+        setResumeRequested(false);
+        setResumeCountdown(0);
+        setErrorMessage(message);
+        setTimeout(() => setErrorMessage(''), 1500);
       });
 
       return newSocket;
@@ -2129,8 +2180,20 @@ const CompetitiveMode = ({ onBack }) => {
     setCurrentAnswer('');
   };
 
+  const pauseGame = () => {
+    if (!socket || !roomCode) return;
+    playSound('buttonClick');
+    socket.emit('pause_game', { roomCode });
+  };
+
+  const resumeGame = () => {
+    if (!socket || !roomCode) return;
+    playSound('buttonClick');
+    socket.emit('resume_game', { roomCode });
+  };
+
   const handleKeyPress = (key) => {
-    if (viewState !== 'playing' || roundWinner || showResultModal) return;
+    if (viewState !== 'playing' || isPaused) return; // 添加暫停檢查
 
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
@@ -2159,14 +2222,14 @@ const CompetitiveMode = ({ onBack }) => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (viewState !== 'playing') return;
+      if (viewState !== 'playing' || isPaused) return; // 添加暫停檢查
       if (e.key === 'Enter') handleKeyPress('ENTER');
       else if (e.key === 'Backspace') handleKeyPress('BACKSPACE');
       else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase());
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewState, currentGuess, roundWinner, roomCode]);
+  }, [viewState, currentGuess, roundWinner, roomCode, isPaused]); // 添加isPaused依賴
 
   // UI 
   if (viewState === 'lobby') {
