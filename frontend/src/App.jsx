@@ -1274,8 +1274,10 @@ const SinglePlayerGame = ({ onBack }) => {
     try {
       const response = await fetch(`${API_URL}/game/new`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ length }), });
       const data = await response.json();
+      console.log('Game creation response:', data); // 調試日誌
       if (data.success) { 
         setGameId(data.gameId); 
+        console.log('Game ID set to:', data.gameId); // 調試日誌 
         setGuesses([]); 
         setCurrentGuess(''); 
         setGameOver(false); 
@@ -1660,6 +1662,12 @@ const SinglePlayerGame = ({ onBack }) => {
               >
                 👁️ {showAnswer ? 'HIDE' : 'SHOW'} ANSWER
               </button>
+            )}
+            {/* 調試信息 - 臨時添加 */}
+            {!gameId && (
+              <div className="text-xs text-red-400 p-2">
+                Debug: gameId is {gameId ? gameId : 'null'}
+              </div>
             )}
             <button 
               onClick={() => startNewGame(wordLength)} 
@@ -2111,6 +2119,7 @@ const CompetitiveMode = ({ onBack }) => {
     });
 
     newSocket.on('new_round', (data) => {
+      console.log('new_round event received:', data);
       setMyRound(data.myRound);
       setOpponentRound(data.opponentRound);
       setPotentialPoints(5);
@@ -2125,6 +2134,7 @@ const CompetitiveMode = ({ onBack }) => {
       setAnimatedCells(new Set()); // Reset animation tracking
       setShowAnswer(false); // Reset answer display
       setCurrentAnswer(''); // Clear current answer
+      console.log('new_round state reset completed');
     });
 
     newSocket.on('player_left', ({ message }) => {
@@ -2315,7 +2325,22 @@ const CompetitiveMode = ({ onBack }) => {
   };
 
   const handleKeyPress = (key) => {
-    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) return;
+    // 調試信息
+    console.log('handleKeyPress called with key:', key);
+    console.log('Current state:', {
+      viewState,
+      roundWinner,
+      showResultModal,
+      isPaused,
+      resumeCountdown
+    });
+    
+    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) {
+      console.log('handleKeyPress blocked by conditions');
+      return;
+    }
+
+    console.log('handleKeyPress proceeding with key:', key);
 
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
