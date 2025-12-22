@@ -2132,6 +2132,9 @@ const CompetitiveMode = ({ onBack }) => {
         setShowAnswer(false); // Reset answer display
         setCurrentAnswer(''); // Clear current answer
         console.log('All states reset');
+        
+        // 重新設置鍵盤焦點，確保新回合可以立即使用鍵盤輸入
+        restoreKeyboardFocus('new round');
       }, 500); // 給玩家0.5秒時間看結果
     });
 
@@ -2289,7 +2292,31 @@ const CompetitiveMode = ({ onBack }) => {
     newSocket.on('current_answer', ({ answer }) => {
       setCurrentAnswer(answer);
       setShowAnswer(true);
+      
+      // 重新設置鍵盤焦點，確保顯示答案後仍可使用鍵盤輸入
+      restoreKeyboardFocus('current answer received');
     });
+  };
+
+  // 鍵盤焦點管理函數
+  const restoreKeyboardFocus = (reason = 'unknown') => {
+    setTimeout(() => {
+      // 嘗試多種方法確保鍵盤焦點恢復
+      
+      // 首先嘗試聚焦到遊戲容器
+      const gameContainer = document.querySelector('.min-h-screen[tabindex="0"]');
+      if (gameContainer) {
+        gameContainer.focus();
+        console.log(`Keyboard focus restored to game container: ${reason}`);
+        return;
+      }
+      
+      // 備用方案：聚焦到 body 和 window
+      document.body.focus();
+      window.focus();
+      
+      console.log(`Keyboard focus restored to body/window: ${reason}`);
+    }, 100);
   };
 
   const togglePause = () => {
@@ -2300,6 +2327,9 @@ const CompetitiveMode = ({ onBack }) => {
     if (socket && roomCode && canSkip) {
       playSound('skipButton');
       socket.emit('skip_round', { roomCode });
+      
+      // 重新設置鍵盤焦點，確保下一回合可以立即使用鍵盤輸入
+      restoreKeyboardFocus('skip round');
     }
   };
 
@@ -2307,6 +2337,9 @@ const CompetitiveMode = ({ onBack }) => {
     if (socket && roomCode) {
       playSound('buttonClick');
       socket.emit('get_current_answer', { roomCode });
+      
+      // 重新設置鍵盤焦點，確保顯示答案後仍可使用鍵盤輸入
+      restoreKeyboardFocus('get answer');
     }
   };
 
@@ -2314,6 +2347,9 @@ const CompetitiveMode = ({ onBack }) => {
     playSound('buttonCancel');
     setShowAnswer(false);
     setCurrentAnswer('');
+    
+    // 重新設置鍵盤焦點，確保隱藏答案後仍可使用鍵盤輸入
+    restoreKeyboardFocus('hide answer');
   };
 
   const handleKeyPress = (key) => {
@@ -2568,7 +2604,11 @@ const CompetitiveMode = ({ onBack }) => {
       const keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'], ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'], ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']];
 
       return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in">
+        <div 
+          className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in"
+          tabIndex={0}
+          onFocus={() => console.log('Game container focused')}
+        >
           
           <div className="flex gap-6 w-full max-w-6xl">
             {/* Center: Main game area */}
