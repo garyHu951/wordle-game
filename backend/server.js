@@ -326,95 +326,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 6. 暫停遊戲
-  socket.on('pause_game', ({ roomCode }) => {
-    const room = rooms[roomCode];
-    if (!room) return;
-    
-    if (!room.pauseRequests) {
-      room.pauseRequests = new Set();
-    }
-    
-    room.pauseRequests.add(socket.id);
-    
-    // 檢查是否雙方都請求暫停
-    const playerIds = Object.keys(room.players);
-    if (room.pauseRequests.size === playerIds.length) {
-      room.isPaused = true;
-      io.to(roomCode).emit('game_paused', {
-        message: 'Game paused by mutual agreement'
-      });
-    } else {
-      // 通知對手有人想暫停
-      const opponentId = playerIds.find(id => id !== socket.id);
-      if (opponentId) {
-        io.to(opponentId).emit('pause_requested', {
-          message: 'Opponent requested to pause the game'
-        });
-      }
-    }
-  });
-
-  // 7. 繼續遊戲
-  socket.on('resume_game', ({ roomCode }) => {
-    const room = rooms[roomCode];
-    if (!room) return;
-    
-    if (!room.resumeRequests) {
-      room.resumeRequests = new Set();
-    }
-    
-    room.resumeRequests.add(socket.id);
-    
-    // 檢查是否雙方都請求繼續
-    const playerIds = Object.keys(room.players);
-    if (room.resumeRequests.size === playerIds.length) {
-      // 3秒倒計時後繼續
-      let countdown = 3;
-      io.to(roomCode).emit('resume_countdown', { countdown });
-      
-      const countdownInterval = setInterval(() => {
-        countdown--;
-        if (countdown > 0) {
-          io.to(roomCode).emit('resume_countdown', { countdown });
-        } else {
-          clearInterval(countdownInterval);
-          room.isPaused = false;
-          room.pauseRequests = new Set();
-          room.resumeRequests = new Set();
-          io.to(roomCode).emit('game_resumed', {
-            message: 'Game resumed!'
-          });
-        }
-      }, 1000);
-    } else {
-      // 通知對手有人想繼續
-      const opponentId = playerIds.find(id => id !== socket.id);
-      if (opponentId) {
-        io.to(opponentId).emit('resume_requested', {
-          message: 'Opponent requested to resume the game'
-        });
-      }
-    }
-  });
-  socket.on('leave_room', ({ roomCode }) => {
-    const room = rooms[roomCode];
-    if (room && room.players[socket.id]) {
-      delete room.players[socket.id];
-      
-      // 通知其他玩家
-      socket.to(roomCode).emit('player_left', {
-        message: 'Opponent left the game. Returning to lobby...'
-      });
-      
-      // 清理房間
-      if (Object.keys(room.players).length === 0) {
-        delete rooms[roomCode];
-      }
-    }
-    socket.leave(roomCode);
-  });
-
   // 5. 跳過回合
   socket.on('skip_round', ({ roomCode }) => {
     const room = rooms[roomCode];
@@ -444,28 +355,17 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
     
-    if (!room.pauseRequests) {
-      room.pauseRequests = new Set();
-    }
+    // 直接暫停遊戲，不需要雙方同意
+    room.isPaused = true;
     
-    room.pauseRequests.add(socket.id);
-    
-    // 檢查是否雙方都請求暫停
+    // 通知房間內所有玩家遊戲已暫停
     const playerIds = Object.keys(room.players);
-    if (room.pauseRequests.size === playerIds.length) {
-      room.isPaused = true;
-      io.to(roomCode).emit('game_paused', {
-        message: 'Game paused by mutual agreement'
-      });
-    } else {
-      // 通知對手有人想暫停
-      const opponentId = playerIds.find(id => id !== socket.id);
-      if (opponentId) {
-        io.to(opponentId).emit('pause_requested', {
-          message: 'Opponent requested to pause the game'
-        });
-      }
-    }
+    const pausingPlayerName = `Player ${socket.id === playerIds[0] ? '1' : '2'}`;
+    
+    io.to(roomCode).emit('game_paused', {
+      message: `Game paused by ${pausingPlayerName}`,
+      pausedBy: pausingPlayerName
+    });
   });
 
   // 7. 繼續遊戲
@@ -473,42 +373,23 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
     
-    if (!room.resumeRequests) {
-      room.resumeRequests = new Set();
-    }
+    // 任何玩家都可以直接恢復遊戲
+    // 3秒倒計時後繼續
+    let countdown = 3;
+    io.to(roomCode).emit('resume_countdown', { countdown });
     
-    room.resumeRequests.add(socket.id);
-    
-    // 檢查是否雙方都請求繼續
-    const playerIds = Object.keys(room.players);
-    if (room.resumeRequests.size === playerIds.length) {
-      // 3秒倒計時後繼續
-      let countdown = 3;
-      io.to(roomCode).emit('resume_countdown', { countdown });
-      
-      const countdownInterval = setInterval(() => {
-        countdown--;
-        if (countdown > 0) {
-          io.to(roomCode).emit('resume_countdown', { countdown });
-        } else {
-          clearInterval(countdownInterval);
-          room.isPaused = false;
-          room.pauseRequests = new Set();
-          room.resumeRequests = new Set();
-          io.to(roomCode).emit('game_resumed', {
-            message: 'Game resumed!'
-          });
-        }
-      }, 1000);
-    } else {
-      // 通知對手有人想繼續
-      const opponentId = playerIds.find(id => id !== socket.id);
-      if (opponentId) {
-        io.to(opponentId).emit('resume_requested', {
-          message: 'Opponent requested to resume the game'
+    const countdownInterval = setInterval(() => {
+      countdown--;
+      if (countdown > 0) {
+        io.to(roomCode).emit('resume_countdown', { countdown });
+      } else {
+        clearInterval(countdownInterval);
+        room.isPaused = false;
+        io.to(roomCode).emit('game_resumed', {
+          message: 'Game resumed!'
         });
       }
-    }
+    }, 1000);
   });
 
   socket.on('disconnect', () => {

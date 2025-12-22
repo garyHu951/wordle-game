@@ -1,0 +1,13 @@
+1.開啟新的cmd
+2.輸入以下指令(檔案存哪裡就cd到哪裡):
+cd C:\Users\gary_hu\Desktop\wordle-game\backend
+npm run dev
+
+3.再開啟一個新的cmd
+4.輸入以下指令(同上):
+cd C:\Users\gary_hu\Desktop\wordle-game\frontend
+npm run dev
+
+5.進入瀏覽器，輸入畫面提供的連結
+
+6.測試遊戲內容是否有錯誤，如果連接不上，就進入後端backend的cmd視窗，按Ctrl + C，接著輸入npm run dev重新執行一次

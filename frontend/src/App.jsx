@@ -1638,7 +1638,14 @@ const SinglePlayerGame = ({ onBack }) => {
               <>
                 <div className="text-4xl mb-4">⏸️</div>
                 <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
-                <p className="text-gray-300 text-xs">Press P or click RESUME to continue</p>
+                <p className="text-gray-300 text-xs mb-4">Press P or click START to continue</p>
+                <button 
+                  onClick={handleSinglePlayerResume}
+                  className="pixel-button px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold transition-smooth pixel-border text-sm hover-scale cursor-pointer"
+                  style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+                >
+                  ▶️ START
+                </button>
               </>
             )}
           </div>
@@ -1683,8 +1690,6 @@ const CompetitiveMode = ({ onBack }) => {
   const [gameStartCountdown, setGameStartCountdown] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
-  const [pauseRequested, setPauseRequested] = useState(false);
-  const [resumeRequested, setResumeRequested] = useState(false);
   const [resumeCountdown, setResumeCountdown] = useState(0);
   const [skipAnswerModal, setSkipAnswerModal] = useState({ show: false, answer: '', round: 0, playerName: '' });
 
@@ -1764,25 +1769,7 @@ const CompetitiveMode = ({ onBack }) => {
         }, 2000);
       });
 
-      newSocket.on('pause_requested', ({ message }) => {
-        setPauseRequested(true);
-        setErrorMessage(message);
-        setTimeout(() => {
-          setErrorMessage('');
-          setPauseRequested(false);
-        }, 3000);
-      });
-
-      newSocket.on('resume_requested', ({ message }) => {
-        setResumeRequested(true);
-        setErrorMessage(message);
-        setTimeout(() => {
-          setErrorMessage('');
-          setResumeRequested(false);
-        }, 3000);
-      });
-
-      newSocket.on('game_paused', ({ message }) => {
+      newSocket.on('game_paused', ({ message, pausedBy }) => {
         setIsPaused(true);
         setErrorMessage(message);
         setTimeout(() => setErrorMessage(''), 2000);
@@ -2674,13 +2661,14 @@ const CompetitiveMode = ({ onBack }) => {
                   <>
                     <div className="text-4xl mb-4">⏸️</div>
                     <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
-                    <p className="text-gray-300 text-xs">Press P or click RESUME to continue</p>
-                    {pauseRequested && (
-                      <p className="text-blue-400 text-xs mt-2">Waiting for opponent to agree...</p>
-                    )}
-                    {resumeRequested && (
-                      <p className="text-green-400 text-xs mt-2">Opponent wants to resume!</p>
-                    )}
+                    <p className="text-gray-300 text-xs mb-4">Press P or click START to continue</p>
+                    <button 
+                      onClick={handleResume}
+                      className="pixel-button px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold transition-smooth pixel-border text-sm hover-scale cursor-pointer"
+                      style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+                    >
+                      ▶️ START
+                    </button>
                   </>
                 )}
               </div>
