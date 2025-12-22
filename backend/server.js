@@ -326,25 +326,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. 離開房間
-  socket.on('leave_room', ({ roomCode }) => {
-    const room = rooms[roomCode];
-    if (room && room.players[socket.id]) {
-      delete room.players[socket.id];
-      
-      // 通知其他玩家
-      socket.to(roomCode).emit('player_left', {
-        message: 'Opponent left the game. Returning to lobby...'
-      });
-      
-      // 清理房間
-      if (Object.keys(room.players).length === 0) {
-        delete rooms[roomCode];
-      }
-    }
-    socket.leave(roomCode);
-  });
-
   // 6. 暫停遊戲
   socket.on('pause_game', ({ roomCode }) => {
     const room = rooms[roomCode];
@@ -377,7 +358,7 @@ io.on('connection', (socket) => {
   // 7. 繼續遊戲
   socket.on('resume_game', ({ roomCode }) => {
     const room = rooms[roomCode];
-    if (!room || !room.isPaused) return;
+    if (!room) return;
     
     if (!room.resumeRequests) {
       room.resumeRequests = new Set();
@@ -416,6 +397,23 @@ io.on('connection', (socket) => {
       }
     }
   });
+  socket.on('leave_room', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (room && room.players[socket.id]) {
+      delete room.players[socket.id];
+      
+      // 通知其他玩家
+      socket.to(roomCode).emit('player_left', {
+        message: 'Opponent left the game. Returning to lobby...'
+      });
+      
+      // 清理房間
+      if (Object.keys(room.players).length === 0) {
+        delete rooms[roomCode];
+      }
+    }
+    socket.leave(roomCode);
+  });
 
   // 5. 跳過回合
   socket.on('skip_round', ({ roomCode }) => {
@@ -426,11 +424,11 @@ io.on('connection', (socket) => {
     const currentRound = room.playerRounds[socket.id] || 1;
     const currentAnswer = room.roundWords[currentRound];
     
-    // 先發送當前答案
+    // 先發送當前答案給玩家
     if (currentAnswer) {
-      socket.emit('round_skipped', {
+      socket.emit('round_skipped_answer', {
         answer: currentAnswer,
-        message: `Round ${currentRound} skipped. Answer was: ${currentAnswer}`
+        round: currentRound
       });
     }
     

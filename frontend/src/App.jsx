@@ -1245,7 +1245,8 @@ const SinglePlayerGame = ({ onBack }) => {
   const [remainingGuesses, setRemainingGuesses] = useState(6); // Fixed to 6 guesses
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
-  const [isPausedSingle, setIsPausedSingle] = useState(false); // 單人模式暫停狀態
+  const [isPaused, setIsPaused] = useState(false);
+  const [pauseCountdown, setPauseCountdown] = useState(0);
   const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   useEffect(() => { checkServerHealth(); }, []);
@@ -1292,7 +1293,7 @@ const SinglePlayerGame = ({ onBack }) => {
   };
   
   const handleKeyPress = async (key) => {
-    if (gameOver || loading || !serverConnected || isPausedSingle) return; // 添加暫停檢查
+    if (gameOver || loading || !serverConnected || isPaused || pauseCountdown > 0) return;
     
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) { 
@@ -1431,16 +1432,60 @@ const SinglePlayerGame = ({ onBack }) => {
     }
   };
   
+  // Add pause/resume handlers for single player
+  const handleSinglePlayerPause = () => {
+    if (!isPaused && !gameOver) {
+      playSound('buttonClick');
+      setIsPaused(true);
+      setMessage('GAME PAUSED - Press P to resume');
+    }
+  };
+
+  const handleSinglePlayerResume = () => {
+    if (isPaused) {
+      playSound('buttonClick');
+      // 3 second countdown
+      let countdown = 3;
+      setPauseCountdown(countdown);
+      setMessage(`RESUMING IN ${countdown}...`);
+      
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          setPauseCountdown(countdown);
+          setMessage(`RESUMING IN ${countdown}...`);
+        } else {
+          clearInterval(countdownInterval);
+          setIsPaused(false);
+          setPauseCountdown(0);
+          setMessage('GAME RESUMED!');
+          setTimeout(() => setMessage(''), 1000);
+        }
+      }, 1000);
+    }
+  };
+  
   useEffect(() => {
     const handleKeyDown = (e) => { 
-      if (isPausedSingle) return; // 添加暫停檢查
+      // Handle pause/resume with P key
+      if (e.key.toLowerCase() === 'p') {
+        if (isPaused) {
+          handleSinglePlayerResume();
+        } else {
+          handleSinglePlayerPause();
+        }
+        return;
+      }
+      
+      if (isPaused || pauseCountdown > 0) return;
+      
       if (e.key === 'Enter') handleKeyPress('ENTER'); 
       else if (e.key === 'Backspace') handleKeyPress('BACKSPACE'); 
       else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase()); 
     };
     window.addEventListener('keydown', handleKeyDown); 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentGuess, gameOver, loading, isPausedSingle]); // 添加isPausedSingle依賴
+  }, [currentGuess, gameOver, loading, isPaused, pauseCountdown]);
 
   const handleBack = () => {
     playSound('buttonCancel');
@@ -1554,13 +1599,23 @@ const SinglePlayerGame = ({ onBack }) => {
             ))}
           </div>
           
-          <button 
-            onClick={() => startNewGame(wordLength)} 
-            className="pixel-button mt-8 w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-500 cursor-pointer"
-            style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
-          >
-            <RotateCcw size={16}/> NEW GAME
-          </button>
+          <div className="flex gap-2 mt-8 w-full">
+            <button 
+              onClick={isPaused ? handleSinglePlayerResume : handleSinglePlayerPause}
+              disabled={gameOver}
+              className={`pixel-button flex-1 py-3 ${isPaused ? 'bg-green-600 hover:bg-green-500' : 'bg-yellow-600 hover:bg-yellow-500'} text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-400 cursor-pointer ${gameOver ? 'opacity-50 cursor-not-allowed' : ''}`}
+              style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+            >
+              {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
+            </button>
+            <button 
+              onClick={() => startNewGame(wordLength)} 
+              className="pixel-button flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-500 cursor-pointer"
+              style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+            >
+              <RotateCcw size={16}/> NEW GAME
+            </button>
+          </div>
         </div>
         
         {/* Right side: Letter status */}
@@ -1568,6 +1623,27 @@ const SinglePlayerGame = ({ onBack }) => {
           <LetterStatusTracker guesses={guesses} />
         </div>
       </div>
+      
+      {/* Pause overlay for single player */}
+      {(isPaused || pauseCountdown > 0) && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+            {pauseCountdown > 0 ? (
+              <>
+                <div className="text-4xl mb-4 animate-bounce">⏰</div>
+                <h2 className="text-xl font-bold text-yellow-400 mb-2">RESUMING IN</h2>
+                <div className="text-6xl font-bold text-green-400 animate-pulse">{pauseCountdown}</div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl mb-4">⏸️</div>
+                <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
+                <p className="text-gray-300 text-xs">Press P or click RESUME to continue</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Result Modal */}
       <ResultModal show={showResultModal} type={resultModalType} mode="single" />
@@ -1610,6 +1686,7 @@ const CompetitiveMode = ({ onBack }) => {
   const [pauseRequested, setPauseRequested] = useState(false);
   const [resumeRequested, setResumeRequested] = useState(false);
   const [resumeCountdown, setResumeCountdown] = useState(0);
+  const [skipAnswerModal, setSkipAnswerModal] = useState({ show: false, answer: '', round: 0 });
 
   // Scoreboard
   const [guesses, setGuesses] = useState([]);
@@ -1669,6 +1746,62 @@ const CompetitiveMode = ({ onBack }) => {
         setAnimatedCells(new Set()); // Reset animation tracking
         setShowAnswer(false); // Reset answer display
         setCurrentAnswer(''); // Clear current answer
+        
+        // Focus on input after new round starts
+        setTimeout(() => {
+          const gameContainer = document.querySelector('.space-y-2');
+          if (gameContainer) {
+            gameContainer.focus();
+          }
+        }, 100);
+      });
+
+      // Add new socket event handlers for pause/resume and skip answer
+      newSocket.on('round_skipped_answer', ({ answer, round }) => {
+        setSkipAnswerModal({ show: true, answer, round });
+        setTimeout(() => {
+          setSkipAnswerModal({ show: false, answer: '', round: 0 });
+        }, 2000);
+      });
+
+      newSocket.on('pause_requested', ({ message }) => {
+        setPauseRequested(true);
+        setErrorMessage(message);
+        setTimeout(() => {
+          setErrorMessage('');
+          setPauseRequested(false);
+        }, 3000);
+      });
+
+      newSocket.on('resume_requested', ({ message }) => {
+        setResumeRequested(true);
+        setErrorMessage(message);
+        setTimeout(() => {
+          setErrorMessage('');
+          setResumeRequested(false);
+        }, 3000);
+      });
+
+      newSocket.on('game_paused', ({ message }) => {
+        setIsPaused(true);
+        setErrorMessage(message);
+        setTimeout(() => setErrorMessage(''), 2000);
+      });
+
+      newSocket.on('resume_countdown', ({ countdown }) => {
+        setResumeCountdown(countdown);
+      });
+
+      newSocket.on('game_resumed', ({ message }) => {
+        setIsPaused(false);
+        setResumeCountdown(0);
+        setErrorMessage(message);
+        setTimeout(() => setErrorMessage(''), 2000);
+      });
+
+      newSocket.on('guess_error', (message) => {
+        setErrorMessage(message);
+        setTimeout(() => setErrorMessage(''), 2000);
       });
 
 
@@ -1834,47 +1967,6 @@ const CompetitiveMode = ({ onBack }) => {
       newSocket.on('current_answer', ({ answer }) => {
         setCurrentAnswer(answer);
         setShowAnswer(true);
-      });
-
-      // 添加跳過回合事件
-      newSocket.on('round_skipped', ({ answer, message }) => {
-        setCurrentAnswer(answer);
-        setShowAnswer(true);
-        setErrorMessage(message);
-        setTimeout(() => {
-          setErrorMessage('');
-          setShowAnswer(false);
-        }, 2000);
-      });
-
-      // 添加暫停相關事件
-      newSocket.on('pause_requested', ({ message }) => {
-        setPauseRequested(true);
-        setErrorMessage(message);
-      });
-
-      newSocket.on('game_paused', ({ message }) => {
-        setIsPaused(true);
-        setPauseRequested(false);
-        setErrorMessage(message);
-      });
-
-      newSocket.on('resume_requested', ({ message }) => {
-        setResumeRequested(true);
-        setErrorMessage(message);
-      });
-
-      newSocket.on('resume_countdown', ({ countdown }) => {
-        setResumeCountdown(countdown);
-        setErrorMessage(`Game resuming in ${countdown}...`);
-      });
-
-      newSocket.on('game_resumed', ({ message }) => {
-        setIsPaused(false);
-        setResumeRequested(false);
-        setResumeCountdown(0);
-        setErrorMessage(message);
-        setTimeout(() => setErrorMessage(''), 1500);
       });
 
       return newSocket;
@@ -2180,20 +2272,8 @@ const CompetitiveMode = ({ onBack }) => {
     setCurrentAnswer('');
   };
 
-  const pauseGame = () => {
-    if (!socket || !roomCode) return;
-    playSound('buttonClick');
-    socket.emit('pause_game', { roomCode });
-  };
-
-  const resumeGame = () => {
-    if (!socket || !roomCode) return;
-    playSound('buttonClick');
-    socket.emit('resume_game', { roomCode });
-  };
-
   const handleKeyPress = (key) => {
-    if (viewState !== 'playing' || isPaused) return; // 添加暫停檢查
+    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) return;
 
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
@@ -2220,16 +2300,44 @@ const CompetitiveMode = ({ onBack }) => {
     }
   };
 
+  // Add pause/resume handlers
+  const handlePause = () => {
+    if (socket && !isPaused) {
+      playSound('buttonClick');
+      socket.emit('pause_game', { roomCode });
+    }
+  };
+
+  const handleResume = () => {
+    if (socket && isPaused) {
+      playSound('buttonClick');
+      socket.emit('resume_game', { roomCode });
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (viewState !== 'playing' || isPaused) return; // 添加暫停檢查
+      if (viewState !== 'playing') return;
+      
+      // Handle pause/resume with P key
+      if (e.key.toLowerCase() === 'p') {
+        if (isPaused) {
+          handleResume();
+        } else {
+          handlePause();
+        }
+        return;
+      }
+      
+      if (isPaused || resumeCountdown > 0) return;
+      
       if (e.key === 'Enter') handleKeyPress('ENTER');
       else if (e.key === 'Backspace') handleKeyPress('BACKSPACE');
       else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase());
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewState, currentGuess, roundWinner, roomCode, isPaused]); // 添加isPaused依賴
+  }, [viewState, currentGuess, roundWinner, roomCode, isPaused, resumeCountdown]);
 
   // UI 
   if (viewState === 'lobby') {
@@ -2429,6 +2537,13 @@ const CompetitiveMode = ({ onBack }) => {
                     EXIT GAME
                   </button>
                   <div className="flex gap-2">
+                    <button 
+                      onClick={isPaused ? handleResume : handlePause}
+                      className={`pixel-button px-4 py-2 ${isPaused ? 'bg-green-600 hover:bg-green-500' : 'bg-yellow-600 hover:bg-yellow-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
+                      style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                    >
+                      {isPaused ? 'RESUME' : 'PAUSE'}
+                    </button>
                     {canSkip && (
                       <button 
                         onClick={skipRound}
@@ -2540,6 +2655,45 @@ const CompetitiveMode = ({ onBack }) => {
               <LetterStatusTracker guesses={guesses} />
             </div>
           </div>
+          
+          {/* Pause overlay */}
+          {(isPaused || resumeCountdown > 0) && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+              <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+                {resumeCountdown > 0 ? (
+                  <>
+                    <div className="text-4xl mb-4 animate-bounce">⏰</div>
+                    <h2 className="text-xl font-bold text-yellow-400 mb-2">RESUMING IN</h2>
+                    <div className="text-6xl font-bold text-green-400 animate-pulse">{resumeCountdown}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-4xl mb-4">⏸️</div>
+                    <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
+                    <p className="text-gray-300 text-xs">Press P or click RESUME to continue</p>
+                    {pauseRequested && (
+                      <p className="text-blue-400 text-xs mt-2">Waiting for opponent to agree...</p>
+                    )}
+                    {resumeRequested && (
+                      <p className="text-green-400 text-xs mt-2">Opponent wants to resume!</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Skip answer modal */}
+          {skipAnswerModal.show && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+              <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+                <div className="text-4xl mb-4">📝</div>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">ROUND {skipAnswerModal.round} ANSWER</h2>
+                <div className="text-3xl font-bold text-yellow-400 mb-4 tracking-wider">{skipAnswerModal.answer}</div>
+                <p className="text-gray-300 text-xs">Starting next round...</p>
+              </div>
+            </div>
+          )}
           
           {/* Result modal */}
           <ResultModal show={showResultModal} type={resultModalType} mode="competitive" />
