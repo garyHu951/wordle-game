@@ -1445,7 +1445,7 @@ const SinglePlayerGame = ({ onBack }) => {
     if (!isPaused && !gameOver) {
       playSound('buttonClick');
       setIsPaused(true);
-      setMessage('GAME PAUSED - Press P to resume');
+      setMessage('GAME PAUSED - Click START to resume');
     }
   };
 
@@ -1505,16 +1505,6 @@ const SinglePlayerGame = ({ onBack }) => {
   
   useEffect(() => {
     const handleKeyDown = (e) => { 
-      // Handle pause/resume with P key
-      if (e.key.toLowerCase() === 'p') {
-        if (isPaused) {
-          handleSinglePlayerResume();
-        } else {
-          handleSinglePlayerPause();
-        }
-        return;
-      }
-      
       if (isPaused || pauseCountdown > 0) return;
       
       if (e.key === 'Enter') handleKeyPress('ENTER'); 
@@ -1699,7 +1689,7 @@ const SinglePlayerGame = ({ onBack }) => {
               <>
                 <div className="text-4xl mb-4">⏸️</div>
                 <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
-                <p className="text-gray-300 text-xs mb-4">Press P or click START to continue</p>
+                <p className="text-gray-300 text-xs mb-4">Click START to continue</p>
                 <button 
                   onClick={handleSinglePlayerResume}
                   className="pixel-button px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold transition-smooth pixel-border text-sm hover-scale cursor-pointer"
@@ -2119,23 +2109,30 @@ const CompetitiveMode = ({ onBack }) => {
     });
 
     newSocket.on('new_round', (data) => {
-      // 延遲一點時間讓玩家看到結果，然後重置狀態
+      console.log('new_round event received:', data);
+      console.log('Current showResultModal before reset:', showResultModal);
+      
+      // 立即重置關鍵狀態以確保鍵盤輸入不被阻塞
+      setShowResultModal(false); // 立即重置結果模態框
+      setRoundWinner(null);
+      setResultModalType(''); // 重置模態框類型
+      
+      // 延遲一點時間重置其他狀態
       setTimeout(() => {
+        console.log('Resetting remaining states after new_round delay');
         setMyRound(data.myRound);
         setOpponentRound(data.opponentRound);
         setPotentialPoints(5);
         setHints([]);
         setGuesses([]);
         setCurrentGuess('');
-        setRoundWinner(null);
         setErrorMessage('');
         setCanSkip(true);
-        setShowResultModal(false); // 確保重置結果模態框
-        setResultModalType(''); // 重置模態框類型
         setAnimatedCells(new Set()); // Reset animation tracking
         setShowAnswer(false); // Reset answer display
         setCurrentAnswer(''); // Clear current answer
-      }, 1500); // 給玩家1.5秒時間看結果
+        console.log('All states reset');
+      }, 500); // 給玩家0.5秒時間看結果
     });
 
     newSocket.on('player_left', ({ message }) => {
@@ -2320,7 +2317,15 @@ const CompetitiveMode = ({ onBack }) => {
   };
 
   const handleKeyPress = (key) => {
-    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) return;
+    console.log('handleKeyPress called with key:', key);
+    console.log('Current state:', {viewState, roundWinner, showResultModal, isPaused, resumeCountdown});
+    
+    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) {
+      console.log('handleKeyPress blocked by conditions');
+      return;
+    }
+    
+    console.log('handleKeyPress proceeding with key:', key);
 
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
@@ -2369,16 +2374,6 @@ const CompetitiveMode = ({ onBack }) => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (viewState !== 'playing') return;
-      
-      // Handle pause/resume with P key
-      if (e.key.toLowerCase() === 'p') {
-        if (isPaused) {
-          handleResume();
-        } else {
-          handlePause();
-        }
-        return;
-      }
       
       if (isPaused || resumeCountdown > 0) return;
       
@@ -2721,7 +2716,7 @@ const CompetitiveMode = ({ onBack }) => {
                   <>
                     <div className="text-4xl mb-4">⏸️</div>
                     <h2 className="text-xl font-bold text-yellow-400 mb-2">GAME PAUSED</h2>
-                    <p className="text-gray-300 text-xs mb-4">Press P or click START to continue</p>
+                    <p className="text-gray-300 text-xs mb-4">Click START to continue</p>
                     <button 
                       onClick={handleResume}
                       className="pixel-button px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold transition-smooth pixel-border text-sm hover-scale cursor-pointer"
