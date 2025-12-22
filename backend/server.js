@@ -160,12 +160,17 @@ function startRoundForPlayer(roomCode, playerId) {
     room.roundWords[currentRound] = getRandomWord(room.wordLength);
   }
   
-  // 通知該玩家新回合開始
+  // 獲取對手ID
   const opponentId = playerIds.find(id => id !== playerId);
-  io.to(playerId).emit('new_round', {
-    myRound: room.playerRounds[playerId],
-    opponentRound: room.playerRounds[opponentId] || 1,
-    potentialPoints: 5
+  
+  // 向房間內所有玩家廣播回合數更新
+  playerIds.forEach(id => {
+    const isCurrentPlayer = id === playerId;
+    io.to(id).emit('new_round', {
+      myRound: room.playerRounds[id] || 1,
+      opponentRound: room.playerRounds[isCurrentPlayer ? opponentId : playerId] || 1,
+      potentialPoints: 5
+    });
   });
 
   console.log(`[Room ${roomCode}] Player ${playerId} Round ${currentRound}. Word: ${room.roundWords[currentRound]}`);
@@ -222,9 +227,31 @@ io.on('connection', (socket) => {
     // 延遲3秒後為每個玩家開始第一回合
     setTimeout(() => {
       const playerIds = Object.keys(room.players);
+      // 初始化每個玩家的回合數為1
       playerIds.forEach(playerId => {
-        startRoundForPlayer(roomCode, playerId);
+        if (!room.playerRounds) room.playerRounds = {};
+        room.playerRounds[playerId] = 1;
+        if (!room.playerGuessCount) room.playerGuessCount = {};
+        room.playerGuessCount[playerId] = 0;
       });
+      
+      // 為第一回合生成單字
+      if (!room.roundWords) room.roundWords = {};
+      if (!room.roundWords[1]) {
+        room.roundWords[1] = getRandomWord(room.wordLength);
+      }
+      
+      // 向所有玩家廣播第一回合開始
+      playerIds.forEach(playerId => {
+        const opponentId = playerIds.find(id => id !== playerId);
+        io.to(playerId).emit('new_round', {
+          myRound: 1,
+          opponentRound: 1,
+          potentialPoints: 5
+        });
+      });
+      
+      console.log(`[Room ${roomCode}] Game started. Both players at Round 1. Word: ${room.roundWords[1]}`);
     }, 3000);
   });
 
