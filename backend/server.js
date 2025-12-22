@@ -540,6 +540,25 @@ app.post('/api/game/:id/guess', (req, res) => {
         });
     } catch(e) { res.status(500).json({error: 'err'}); }
 });
+
+// 新增：獲取當前遊戲答案的API（任何時候都可以調用）
+app.get('/api/game/:id/answer', (req, res) => {
+    try {
+        const { id } = req.params;
+        const game = singlePlayerGames.get(id);
+        if (!game) {
+            return res.status(404).json({ success: false, error: 'Game not found' });
+        }
+        
+        res.json({ 
+            success: true, 
+            answer: game.answer,
+            gameId: id
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
 // ----------------------------------------------------
 
 // 最後啟動 Server (注意是用 server.listen 而不是 app.listen)

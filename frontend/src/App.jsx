@@ -1471,11 +1471,33 @@ const SinglePlayerGame = ({ onBack }) => {
     }
   };
 
-  // 顯示答案功能
-  const handleShowAnswer = () => {
-    if (gameOver && currentAnswer) {
-      playSound('buttonClick');
-      setShowAnswer(!showAnswer);
+  // 顯示答案功能 - 從API獲取答案
+  const handleShowAnswer = async () => {
+    if (!gameId) return;
+    
+    playSound('buttonClick');
+    
+    if (showAnswer) {
+      // 如果已經顯示，則隱藏
+      setShowAnswer(false);
+    } else {
+      // 如果未顯示，則從API獲取答案
+      try {
+        const response = await fetch(`${API_URL}/game/${gameId}/answer`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setCurrentAnswer(data.answer);
+          setShowAnswer(true);
+        } else {
+          setMessage('Failed to get answer');
+          setTimeout(() => setMessage(''), 2000);
+        }
+      } catch (error) {
+        console.error('Error fetching answer:', error);
+        setMessage('Error getting answer');
+        setTimeout(() => setMessage(''), 2000);
+      }
     }
   };
   
@@ -1592,7 +1614,7 @@ const SinglePlayerGame = ({ onBack }) => {
           <div className="space-y-2 mb-8 select-none animate-fade-in-scale animate-delay-200">{renderGrid()}</div>
           
           {/* 答案顯示區域 */}
-          {showAnswer && gameOver && currentAnswer && (
+          {showAnswer && currentAnswer && (
             <div className="mb-6 p-4 bg-gray-800 pixel-border text-center animate-modal-slide-in" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
               <div className="text-sm text-gray-400 mb-2">ANSWER</div>
               <div className="text-2xl font-bold text-yellow-400 tracking-wider">{currentAnswer}</div>
@@ -1630,7 +1652,7 @@ const SinglePlayerGame = ({ onBack }) => {
             >
               {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
             </button>
-            {gameOver && currentAnswer && (
+            {gameId && (
               <button 
                 onClick={handleShowAnswer}
                 className="pixel-button flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-450 cursor-pointer"
