@@ -2119,22 +2119,23 @@ const CompetitiveMode = ({ onBack }) => {
     });
 
     newSocket.on('new_round', (data) => {
-      console.log('new_round event received:', data);
-      setMyRound(data.myRound);
-      setOpponentRound(data.opponentRound);
-      setPotentialPoints(5);
-      setHints([]);
-      setGuesses([]);
-      setCurrentGuess('');
-      setRoundWinner(null);
-      setErrorMessage('');
-      setCanSkip(true);
-      setShowResultModal(false); // 確保重置結果模態框
-      setResultModalType(''); // 重置模態框類型
-      setAnimatedCells(new Set()); // Reset animation tracking
-      setShowAnswer(false); // Reset answer display
-      setCurrentAnswer(''); // Clear current answer
-      console.log('new_round state reset completed');
+      // 延遲一點時間讓玩家看到結果，然後重置狀態
+      setTimeout(() => {
+        setMyRound(data.myRound);
+        setOpponentRound(data.opponentRound);
+        setPotentialPoints(5);
+        setHints([]);
+        setGuesses([]);
+        setCurrentGuess('');
+        setRoundWinner(null);
+        setErrorMessage('');
+        setCanSkip(true);
+        setShowResultModal(false); // 確保重置結果模態框
+        setResultModalType(''); // 重置模態框類型
+        setAnimatedCells(new Set()); // Reset animation tracking
+        setShowAnswer(false); // Reset answer display
+        setCurrentAnswer(''); // Clear current answer
+      }, 1500); // 給玩家1.5秒時間看結果
     });
 
     newSocket.on('player_left', ({ message }) => {
@@ -2237,17 +2238,11 @@ const CompetitiveMode = ({ onBack }) => {
         }, result.length * 100 + 500);
         setResultModalType('win');
         setShowResultModal(true);
-        setTimeout(() => {
-          setShowResultModal(false);
-          // Backend will automatically start next round
-        }, 1000);
+        // 移除自動隱藏，讓 new_round 事件來重置狀態
       } else if (gameOver) {
         setResultModalType('lose');
         setShowResultModal(true);
-        setTimeout(() => {
-          setShowResultModal(false);
-          // Backend will automatically start next round
-        }, 1000);
+        // 移除自動隱藏，讓 new_round 事件來重置狀態
       }
     });
 
@@ -2325,22 +2320,7 @@ const CompetitiveMode = ({ onBack }) => {
   };
 
   const handleKeyPress = (key) => {
-    // 調試信息
-    console.log('handleKeyPress called with key:', key);
-    console.log('Current state:', {
-      viewState,
-      roundWinner,
-      showResultModal,
-      isPaused,
-      resumeCountdown
-    });
-    
-    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) {
-      console.log('handleKeyPress blocked by conditions');
-      return;
-    }
-
-    console.log('handleKeyPress proceeding with key:', key);
+    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) return;
 
     if (key === 'ENTER') {
       if (currentGuess.length !== wordLength) return;
