@@ -132,26 +132,30 @@ function startRoundForPlayer(roomCode, playerId) {
     return;
   }
 
-  // 為該玩家生成新單字
-  if (!room.currentWords) {
-    room.currentWords = {};
+  // 初始化房間數據結構
+  if (!room.currentWord) {
+    room.currentWord = null; // 改為單一共享單字
   }
-  room.currentWords[playerId] = getRandomWord(room.wordLength);
-  
-  // 重置該玩家的猜測次數
   if (!room.playerGuessCount) {
     room.playerGuessCount = {};
   }
-  room.playerGuessCount[playerId] = 0;
-  
-  // 增加該玩家的回合數
   if (!room.playerRounds) {
     room.playerRounds = {};
   }
+
+  // 重置該玩家的猜測次數
+  room.playerGuessCount[playerId] = 0;
+  
+  // 增加該玩家的回合數
   if (!room.playerRounds[playerId]) {
     room.playerRounds[playerId] = 1;
   } else {
     room.playerRounds[playerId]++;
+  }
+
+  // 為這個回合生成新的共享單字（如果還沒有的話）
+  if (!room.currentWord) {
+    room.currentWord = getRandomWord(room.wordLength);
   }
   
   // 通知該玩家新回合開始
@@ -162,7 +166,7 @@ function startRoundForPlayer(roomCode, playerId) {
     potentialPoints: 5
   });
 
-  console.log(`[Room ${roomCode}] Player ${playerId} Round ${room.playerRounds[playerId]}. Word: ${room.currentWords[playerId]}`);
+  console.log(`[Room ${roomCode}] Player ${playerId} Round ${room.playerRounds[playerId]}. Shared Word: ${room.currentWord}`);
 }
 
 
@@ -176,7 +180,7 @@ io.on('connection', (socket) => {
       id: roomCode,
       wordLength: parseInt(wordLength),
       players: {},
-      currentWords: {},
+      currentWord: null, // 改為單一共享單字
       playerRounds: {},
       playerGuessCount: {},
       status: 'waiting'
@@ -244,10 +248,15 @@ io.on('connection', (socket) => {
       room.playerGuessCount[socket.id] = 0;
     }
 
-    // 判斷對錯 - 使用該玩家專屬的單字
-    const playerWord = room.currentWords[socket.id];
-    const result = checkGuess(normalizedGuess, playerWord);
-    const isCorrect = normalizedGuess === playerWord;
+    // 判斷對錯 - 使用共享的單字
+    const sharedWord = room.currentWord;
+    if (!sharedWord) {
+      socket.emit('guess_error', '回合尚未開始');
+      return;
+    }
+    
+    const result = checkGuess(normalizedGuess, sharedWord);
+    const isCorrect = normalizedGuess === sharedWord;
     
     // 增加猜測次數
     room.playerGuessCount[socket.id]++;
@@ -272,7 +281,7 @@ io.on('connection', (socket) => {
       if (opponentId) {
         io.to(opponentId).emit('opponent_won_round', {
           opponentName: 'Opponent',
-          word: playerWord,
+          word: sharedWord,
           points: points
         });
       }
@@ -280,16 +289,20 @@ io.on('connection', (socket) => {
       // 廣播分數更新
       io.to(roomCode).emit('round_winner', {
         winnerId: socket.id,
-        word: playerWord,
+        word: sharedWord,
         points: points,
         updatedPlayers: room.players
       });
+      
+      // 清除當前單字，為下一回合準備
+      room.currentWord = null;
       
       // 1秒後為該玩家開始下一回合
       setTimeout(() => startRoundForPlayer(roomCode, socket.id), 1000);
 
     } else if (gameOver) {
-      // 6次都沒猜到，1秒後開始下一回合
+      // 6次都沒猜到，清除當前單字，1秒後開始下一回合
+      room.currentWord = null;
       setTimeout(() => startRoundForPlayer(roomCode, socket.id), 1000);
     }
   });
@@ -297,9 +310,9 @@ io.on('connection', (socket) => {
   // 4. 獲取當前答案
   socket.on('get_current_answer', ({ roomCode }) => {
     const room = rooms[roomCode];
-    if (room && room.players[socket.id] && room.currentWords[socket.id]) {
+    if (room && room.players[socket.id] && room.currentWord) {
       socket.emit('current_answer', {
-        answer: room.currentWords[socket.id]
+        answer: room.currentWord
       });
     } else {
       socket.emit('error_message', 'Cannot get answer: Room not found or not in game');
@@ -329,6 +342,9 @@ io.on('connection', (socket) => {
   socket.on('skip_round', ({ roomCode }) => {
     const room = rooms[roomCode];
     if (!room) return;
+    
+    // 清除當前單字，為下一回合準備新的共享單字
+    room.currentWord = null;
     
     // 為該玩家開始下一回合
     startRoundForPlayer(roomCode, socket.id);
