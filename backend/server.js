@@ -133,8 +133,8 @@ function startRoundForPlayer(roomCode, playerId) {
   }
 
   // 初始化房間數據結構
-  if (!room.currentWord) {
-    room.currentWord = null; // 改為單一共享單字
+  if (!room.roundWords) {
+    room.roundWords = {}; // 存儲每個回合號對應的單字
   }
   if (!room.playerGuessCount) {
     room.playerGuessCount = {};
@@ -153,9 +153,11 @@ function startRoundForPlayer(roomCode, playerId) {
     room.playerRounds[playerId]++;
   }
 
-  // 為這個回合生成新的共享單字（如果還沒有的話）
-  if (!room.currentWord) {
-    room.currentWord = getRandomWord(room.wordLength);
+  const currentRound = room.playerRounds[playerId];
+  
+  // 為這個回合號生成單字（如果還沒有的話）
+  if (!room.roundWords[currentRound]) {
+    room.roundWords[currentRound] = getRandomWord(room.wordLength);
   }
   
   // 通知該玩家新回合開始
@@ -166,7 +168,7 @@ function startRoundForPlayer(roomCode, playerId) {
     potentialPoints: 5
   });
 
-  console.log(`[Room ${roomCode}] Player ${playerId} Round ${room.playerRounds[playerId]}. Shared Word: ${room.currentWord}`);
+  console.log(`[Room ${roomCode}] Player ${playerId} Round ${currentRound}. Word: ${room.roundWords[currentRound]}`);
 }
 
 
@@ -180,7 +182,7 @@ io.on('connection', (socket) => {
       id: roomCode,
       wordLength: parseInt(wordLength),
       players: {},
-      currentWord: null, // 改為單一共享單字
+      roundWords: {}, // 存儲每個回合號對應的單字
       playerRounds: {},
       playerGuessCount: {},
       status: 'waiting'
@@ -248,15 +250,17 @@ io.on('connection', (socket) => {
       room.playerGuessCount[socket.id] = 0;
     }
 
-    // 判斷對錯 - 使用共享的單字
-    const sharedWord = room.currentWord;
-    if (!sharedWord) {
+    // 獲取該玩家當前回合的單字
+    const currentRound = room.playerRounds[socket.id] || 1;
+    const roundWord = room.roundWords[currentRound];
+    
+    if (!roundWord) {
       socket.emit('guess_error', '回合尚未開始');
       return;
     }
     
-    const result = checkGuess(normalizedGuess, sharedWord);
-    const isCorrect = normalizedGuess === sharedWord;
+    const result = checkGuess(normalizedGuess, roundWord);
+    const isCorrect = normalizedGuess === roundWord;
     
     // 增加猜測次數
     room.playerGuessCount[socket.id]++;
@@ -281,7 +285,7 @@ io.on('connection', (socket) => {
       if (opponentId) {
         io.to(opponentId).emit('opponent_won_round', {
           opponentName: 'Opponent',
-          word: sharedWord,
+          word: roundWord,
           points: points
         });
       }
@@ -289,20 +293,16 @@ io.on('connection', (socket) => {
       // 廣播分數更新
       io.to(roomCode).emit('round_winner', {
         winnerId: socket.id,
-        word: sharedWord,
+        word: roundWord,
         points: points,
         updatedPlayers: room.players
       });
-      
-      // 清除當前單字，為下一回合準備
-      room.currentWord = null;
       
       // 1秒後為該玩家開始下一回合
       setTimeout(() => startRoundForPlayer(roomCode, socket.id), 1000);
 
     } else if (gameOver) {
-      // 6次都沒猜到，清除當前單字，1秒後開始下一回合
-      room.currentWord = null;
+      // 6次都沒猜到，1秒後開始下一回合
       setTimeout(() => startRoundForPlayer(roomCode, socket.id), 1000);
     }
   });
@@ -310,10 +310,17 @@ io.on('connection', (socket) => {
   // 4. 獲取當前答案
   socket.on('get_current_answer', ({ roomCode }) => {
     const room = rooms[roomCode];
-    if (room && room.players[socket.id] && room.currentWord) {
-      socket.emit('current_answer', {
-        answer: room.currentWord
-      });
+    if (room && room.players[socket.id]) {
+      const currentRound = room.playerRounds[socket.id] || 1;
+      const roundWord = room.roundWords[currentRound];
+      
+      if (roundWord) {
+        socket.emit('current_answer', {
+          answer: roundWord
+        });
+      } else {
+        socket.emit('error_message', 'Cannot get answer: Round not started');
+      }
     } else {
       socket.emit('error_message', 'Cannot get answer: Room not found or not in game');
     }
@@ -343,10 +350,7 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
     
-    // 清除當前單字，為下一回合準備新的共享單字
-    room.currentWord = null;
-    
-    // 為該玩家開始下一回合
+    // 為該玩家開始下一回合（不影響其他玩家）
     startRoundForPlayer(roomCode, socket.id);
   });
 
