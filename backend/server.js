@@ -6,39 +6,14 @@ const path = require('path');
 // 新增：引入 http 和 socket.io
 const http = require('http');
 const { Server } = require("socket.io");
-const mongoose = require('mongoose');
 require('dotenv').config();
-
-// Import models
-const Game = require('./models/Game');
-const Room = require('./models/Room');
 
 const app = express();
 
 // Environment variables
 const PORT = process.env.PORT || 3001;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/wordle-game';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const NODE_ENV = process.env.NODE_ENV || 'development';
-
-// MongoDB connection (optional)
-if (MONGODB_URI && MONGODB_URI.includes('mongodb') && NODE_ENV === 'production') {
-  mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // 5 second timeout
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  })
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-  })
-  .catch((error) => {
-    console.error('❌ MongoDB connection error:', error);
-    console.log('⚠️  Continuing with in-memory storage');
-  });
-} else {
-  console.log('⚠️  Using in-memory storage (no MongoDB configured)');
-}
 
 // CORS configuration
 const corsOptions = {
@@ -476,7 +451,7 @@ app.get('/api/health', (req, res) => {
         status: 'OK', 
         timestamp: new Date().toISOString(),
         environment: NODE_ENV,
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+        storage: 'in-memory'
     });
 });
 
