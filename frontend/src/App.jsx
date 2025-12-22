@@ -1247,6 +1247,8 @@ const SinglePlayerGame = ({ onBack }) => {
   const [resultModalType, setResultModalType] = useState(''); // 'win' or 'lose'
   const [isPaused, setIsPaused] = useState(false);
   const [pauseCountdown, setPauseCountdown] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false); // 答案顯示狀態
+  const [currentAnswer, setCurrentAnswer] = useState(''); // 當前答案
   const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   useEffect(() => { checkServerHealth(); }, []);
@@ -1283,6 +1285,8 @@ const SinglePlayerGame = ({ onBack }) => {
         setRemainingGuesses(6); // Always use 6 guesses
         setShowResultModal(false);
         setResultModalType('');
+        setShowAnswer(false); // 重置答案顯示
+        setCurrentAnswer(''); // 清空當前答案
       } else { 
         setMessage(data.error); 
       }
@@ -1394,6 +1398,7 @@ const SinglePlayerGame = ({ onBack }) => {
             setGameOver(true); 
             setResultModalType('win');
             setShowResultModal(true);
+            setCurrentAnswer(data.answer); // 保存答案
             setMessage('VICTORY! ' + data.message); 
             
             // Auto-hide modal after 3 seconds
@@ -1404,6 +1409,7 @@ const SinglePlayerGame = ({ onBack }) => {
             setGameOver(true); 
             setResultModalType('lose');
             setShowResultModal(true);
+            setCurrentAnswer(data.answer); // 保存答案
             setMessage(data.message); 
             
             // Auto-hide modal after 3 seconds
@@ -1462,6 +1468,14 @@ const SinglePlayerGame = ({ onBack }) => {
           setTimeout(() => setMessage(''), 1000);
         }
       }, 1000);
+    }
+  };
+
+  // 顯示答案功能
+  const handleShowAnswer = () => {
+    if (gameOver && currentAnswer) {
+      playSound('buttonClick');
+      setShowAnswer(!showAnswer);
     }
   };
   
@@ -1577,6 +1591,14 @@ const SinglePlayerGame = ({ onBack }) => {
           
           <div className="space-y-2 mb-8 select-none animate-fade-in-scale animate-delay-200">{renderGrid()}</div>
           
+          {/* 答案顯示區域 */}
+          {showAnswer && gameOver && currentAnswer && (
+            <div className="mb-6 p-4 bg-gray-800 pixel-border text-center animate-modal-slide-in" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+              <div className="text-sm text-gray-400 mb-2">ANSWER</div>
+              <div className="text-2xl font-bold text-yellow-400 tracking-wider">{currentAnswer}</div>
+            </div>
+          )}
+          
           <div className="flex flex-col gap-2 w-full animate-slide-in-bottom animate-delay-300">
             {keys.map((row, i) => (
               <div key={i} className="flex gap-1 justify-center w-full">
@@ -1608,6 +1630,15 @@ const SinglePlayerGame = ({ onBack }) => {
             >
               {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
             </button>
+            {gameOver && currentAnswer && (
+              <button 
+                onClick={handleShowAnswer}
+                className="pixel-button flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-450 cursor-pointer"
+                style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+              >
+                👁️ {showAnswer ? 'HIDE' : 'SHOW'} ANSWER
+              </button>
+            )}
             <button 
               onClick={() => startNewGame(wordLength)} 
               className="pixel-button flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-500 cursor-pointer"
@@ -2067,6 +2098,8 @@ const CompetitiveMode = ({ onBack }) => {
       setRoundWinner(null);
       setErrorMessage('');
       setCanSkip(true);
+      setShowResultModal(false); // 確保重置結果模態框
+      setResultModalType(''); // 重置模態框類型
       setAnimatedCells(new Set()); // Reset animation tracking
       setShowAnswer(false); // Reset answer display
       setCurrentAnswer(''); // Clear current answer
