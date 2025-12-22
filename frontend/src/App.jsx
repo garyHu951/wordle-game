@@ -1029,6 +1029,56 @@ const HomePage = ({ onSelectMode }) => {
         </div>
       </div>
       
+      {/* Right bottom corner links */}
+      <div className="fixed bottom-4 right-4 z-30 animate-slide-in-right animate-delay-500">
+        <div className="bg-gray-800 p-4 pixel-border text-white text-xs space-y-2" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+          <div className="text-yellow-400 font-bold mb-3 text-center">LINKS</div>
+          
+          {/* 前端遊戲網站 */}
+          <a 
+            href="https://garyHu951.github.io/wordle-game" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="pixel-button block p-2 bg-blue-600 hover:bg-blue-500 text-white pixel-border transition-smooth hover-scale cursor-pointer text-center"
+            style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+          >
+            🎮 GAME SITE
+          </a>
+          
+          {/* 後端API */}
+          <a 
+            href="https://wordle-game-backend-v2.onrender.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="pixel-button block p-2 bg-green-600 hover:bg-green-500 text-white pixel-border transition-smooth hover-scale cursor-pointer text-center"
+            style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+          >
+            🔧 API
+          </a>
+          
+          {/* GitHub源代碼 */}
+          <a 
+            href="https://github.com/garyHu951/wordle-game" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="pixel-button block p-2 bg-purple-600 hover:bg-purple-500 text-white pixel-border transition-smooth hover-scale cursor-pointer text-center"
+            style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+          >
+            📁 GITHUB
+          </a>
+          
+          {/* 期末報告下載 */}
+          <a 
+            href="/wordle-game/第25組期末專案成果-01157123+01257004.pdf" 
+            download="第25組期末專案成果-01157123+01257004.pdf"
+            className="pixel-button block p-2 bg-red-600 hover:bg-red-500 text-white pixel-border transition-smooth hover-scale cursor-pointer text-center"
+            style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+          >
+            📄 REPORT
+          </a>
+        </div>
+      </div>
+      
       <WordListSidebar 
         isOpen={showWordList}
         onClose={handleWordListClose}
