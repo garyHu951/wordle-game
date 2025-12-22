@@ -2300,6 +2300,41 @@ const CompetitiveMode = ({ onBack }) => {
     });
   };
 
+  // 定期檢查鍵盤焦點狀態
+  useEffect(() => {
+    const focusChecker = setInterval(() => {
+      // 只在競賽模式遊戲進行中檢查
+      if (viewState === 'playing' && !isPaused && resumeCountdown === 0) {
+        const activeElement = document.activeElement;
+        const focusCatcher = document.getElementById('keyboard-focus-catcher');
+        const gameContainer = document.querySelector('.min-h-screen[tabindex="0"]');
+        
+        // 如果當前焦點不在任何可接收鍵盤輸入的元素上
+        if (activeElement === document.body || activeElement === document.documentElement) {
+          console.log('Focus checker: restoring keyboard focus');
+          if (focusCatcher) {
+            focusCatcher.focus();
+          } else if (gameContainer) {
+            gameContainer.focus();
+          }
+        }
+      }
+    }, 2000); // 每2秒檢查一次
+    
+    return () => clearInterval(focusChecker);
+  }, [viewState, isPaused, resumeCountdown]);
+
+  // 監控 showAnswer 狀態變化，自動恢復鍵盤焦點
+  useEffect(() => {
+    if (showAnswer) {
+      // 顯示答案時立即恢復鍵盤焦點
+      setTimeout(() => {
+        restoreKeyboardFocus('showAnswer state changed to true');
+        forceKeyboardListenerRebind('showAnswer state changed to true');
+      }, 100);
+    }
+  }, [showAnswer]);
+
   // 創建隱藏的焦點捕獲元素
   useEffect(() => {
     // 創建一個隱藏的可聚焦元素作為焦點備用方案
@@ -2424,9 +2459,12 @@ const CompetitiveMode = ({ onBack }) => {
 
   const handleKeyPress = (key) => {
     console.log('handleKeyPress called with key:', key);
-    console.log('Current state:', {viewState, roundWinner, showResultModal, isPaused, resumeCountdown});
+    console.log('Current state:', {viewState, roundWinner, showResultModal, isPaused, resumeCountdown, showAnswer});
     
-    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) {
+    // 特殊處理：如果只是顯示答案，不應該阻塞鍵盤輸入
+    const isOnlyShowingAnswer = showAnswer && !showResultModal && !roundWinner && !isPaused && resumeCountdown === 0;
+    
+    if (viewState !== 'playing' || (!isOnlyShowingAnswer && (roundWinner || showResultModal || isPaused || resumeCountdown > 0))) {
       console.log('handleKeyPress blocked by conditions');
       return;
     }
@@ -2772,7 +2810,16 @@ const CompetitiveMode = ({ onBack }) => {
 
               {/* Answer display area */}
               {showAnswer && currentAnswer && (
-                <div className="mb-4 p-4 bg-purple-900 pixel-border text-center animate-modal-slide-in" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
+                <div 
+                  className="mb-4 p-4 bg-purple-900 pixel-border text-center animate-modal-slide-in cursor-pointer" 
+                  style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}
+                  onClick={() => {
+                    // 點擊答案區域時強制恢復鍵盤焦點
+                    restoreKeyboardFocus('answer area clicked');
+                    forceKeyboardListenerRebind('answer area clicked');
+                  }}
+                  title="Click to ensure keyboard input works"
+                >
                   <div className="text-xs text-purple-300 mb-2 font-bold no-select">CURRENT ANSWER</div>
                   <div className="flex justify-center gap-1">
                     {currentAnswer.split('').map((letter, index) => (
