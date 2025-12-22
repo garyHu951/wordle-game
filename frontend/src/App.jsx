@@ -2133,8 +2133,9 @@ const CompetitiveMode = ({ onBack }) => {
         setCurrentAnswer(''); // Clear current answer
         console.log('All states reset');
         
-        // 重新設置鍵盤焦點，確保新回合可以立即使用鍵盤輸入
+        // 多重保險措施確保新回合鍵盤輸入正常
         restoreKeyboardFocus('new round');
+        forceKeyboardListenerRebind('new round');
       }, 500); // 給玩家0.5秒時間看結果
     });
 
@@ -2293,30 +2294,96 @@ const CompetitiveMode = ({ onBack }) => {
       setCurrentAnswer(answer);
       setShowAnswer(true);
       
-      // 重新設置鍵盤焦點，確保顯示答案後仍可使用鍵盤輸入
+      // 多重保險措施確保顯示答案後鍵盤輸入正常
       restoreKeyboardFocus('current answer received');
+      forceKeyboardListenerRebind('current answer received');
     });
   };
 
-  // 鍵盤焦點管理函數
+  // 創建隱藏的焦點捕獲元素
+  useEffect(() => {
+    // 創建一個隱藏的可聚焦元素作為焦點備用方案
+    const focusCatcher = document.createElement('input');
+    focusCatcher.id = 'keyboard-focus-catcher';
+    focusCatcher.style.position = 'absolute';
+    focusCatcher.style.left = '-9999px';
+    focusCatcher.style.top = '-9999px';
+    focusCatcher.style.opacity = '0';
+    focusCatcher.style.pointerEvents = 'none';
+    focusCatcher.setAttribute('tabindex', '0');
+    
+    // 添加到 body
+    document.body.appendChild(focusCatcher);
+    
+    // 清理函數
+    return () => {
+      const element = document.getElementById('keyboard-focus-catcher');
+      if (element) {
+        document.body.removeChild(element);
+      }
+    };
+  }, []);
+
+  // 強化的鍵盤焦點管理函數
   const restoreKeyboardFocus = (reason = 'unknown') => {
-    setTimeout(() => {
-      // 嘗試多種方法確保鍵盤焦點恢復
+    // 立即嘗試恢復焦點
+    const immediateRestore = () => {
+      // 方法1: 嘗試聚焦到隱藏的焦點捕獲元素
+      const focusCatcher = document.getElementById('keyboard-focus-catcher');
+      if (focusCatcher) {
+        focusCatcher.focus();
+        console.log(`Keyboard focus restored to focus catcher: ${reason}`);
+        return true;
+      }
       
-      // 首先嘗試聚焦到遊戲容器
+      // 方法2: 嘗試聚焦到遊戲容器
       const gameContainer = document.querySelector('.min-h-screen[tabindex="0"]');
       if (gameContainer) {
         gameContainer.focus();
         console.log(`Keyboard focus restored to game container: ${reason}`);
-        return;
+        return true;
       }
       
-      // 備用方案：聚焦到 body 和 window
-      document.body.focus();
-      window.focus();
+      // 方法3: 嘗試聚焦到 body
+      if (document.body) {
+        document.body.focus();
+        console.log(`Keyboard focus restored to body: ${reason}`);
+        return true;
+      }
       
-      console.log(`Keyboard focus restored to body/window: ${reason}`);
-    }, 100);
+      return false;
+    };
+    
+    // 立即嘗試一次
+    if (immediateRestore()) {
+      return;
+    }
+    
+    // 如果立即嘗試失敗，延遲嘗試
+    setTimeout(() => {
+      if (!immediateRestore()) {
+        // 最後的備用方案
+        window.focus();
+        console.log(`Keyboard focus restored to window (fallback): ${reason}`);
+      }
+    }, 50);
+    
+    // 額外的保險措施：再次嘗試
+    setTimeout(() => {
+      immediateRestore();
+    }, 200);
+  };
+
+  // 強制重新綁定鍵盤事件監聽器
+  const forceKeyboardListenerRebind = (reason = 'unknown') => {
+    setTimeout(() => {
+      // 觸發一個自定義事件來強制重新綁定鍵盤監聽器
+      const rebindEvent = new CustomEvent('forceKeyboardRebind', { 
+        detail: { reason } 
+      });
+      window.dispatchEvent(rebindEvent);
+      console.log(`Forced keyboard listener rebind: ${reason}`);
+    }, 50);
   };
 
   const togglePause = () => {
@@ -2328,8 +2395,9 @@ const CompetitiveMode = ({ onBack }) => {
       playSound('skipButton');
       socket.emit('skip_round', { roomCode });
       
-      // 重新設置鍵盤焦點，確保下一回合可以立即使用鍵盤輸入
+      // 多重保險措施確保鍵盤輸入恢復
       restoreKeyboardFocus('skip round');
+      forceKeyboardListenerRebind('skip round');
     }
   };
 
@@ -2338,8 +2406,9 @@ const CompetitiveMode = ({ onBack }) => {
       playSound('buttonClick');
       socket.emit('get_current_answer', { roomCode });
       
-      // 重新設置鍵盤焦點，確保顯示答案後仍可使用鍵盤輸入
+      // 多重保險措施確保鍵盤輸入恢復
       restoreKeyboardFocus('get answer');
+      forceKeyboardListenerRebind('get answer');
     }
   };
 
@@ -2348,8 +2417,9 @@ const CompetitiveMode = ({ onBack }) => {
     setShowAnswer(false);
     setCurrentAnswer('');
     
-    // 重新設置鍵盤焦點，確保隱藏答案後仍可使用鍵盤輸入
+    // 多重保險措施確保鍵盤輸入恢復
     restoreKeyboardFocus('hide answer');
+    forceKeyboardListenerRebind('hide answer');
   };
 
   const handleKeyPress = (key) => {
@@ -2417,8 +2487,26 @@ const CompetitiveMode = ({ onBack }) => {
       else if (e.key === 'Backspace') handleKeyPress('BACKSPACE');
       else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase());
     };
+    
+    // 強制重新綁定事件處理器
+    const handleForceRebind = (e) => {
+      console.log('Force rebind triggered:', e.detail?.reason);
+      // 移除舊的監聽器
+      window.removeEventListener('keydown', handleKeyDown);
+      // 重新添加監聽器
+      setTimeout(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        console.log('Keyboard listener rebound');
+      }, 10);
+    };
+    
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('forceKeyboardRebind', handleForceRebind);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('forceKeyboardRebind', handleForceRebind);
+    };
   }, [viewState, currentGuess, roundWinner, roomCode, isPaused, resumeCountdown]);
 
   // UI 
