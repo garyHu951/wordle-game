@@ -2132,10 +2132,6 @@ const CompetitiveMode = ({ onBack }) => {
         setShowAnswer(false); // Reset answer display
         setCurrentAnswer(''); // Clear current answer
         console.log('All states reset');
-        
-        // 多重保險措施確保新回合鍵盤輸入正常
-        restoreKeyboardFocus('new round');
-        forceKeyboardListenerRebind('new round');
       }, 500); // 給玩家0.5秒時間看結果
     });
 
@@ -2293,132 +2289,7 @@ const CompetitiveMode = ({ onBack }) => {
     newSocket.on('current_answer', ({ answer }) => {
       setCurrentAnswer(answer);
       setShowAnswer(true);
-      
-      // 多重保險措施確保顯示答案後鍵盤輸入正常
-      restoreKeyboardFocus('current answer received');
-      forceKeyboardListenerRebind('current answer received');
     });
-  };
-
-  // 定期檢查鍵盤焦點狀態
-  useEffect(() => {
-    const focusChecker = setInterval(() => {
-      // 只在競賽模式遊戲進行中檢查
-      if (viewState === 'playing' && !isPaused && resumeCountdown === 0) {
-        const activeElement = document.activeElement;
-        const focusCatcher = document.getElementById('keyboard-focus-catcher');
-        const gameContainer = document.querySelector('.min-h-screen[tabindex="0"]');
-        
-        // 如果當前焦點不在任何可接收鍵盤輸入的元素上
-        if (activeElement === document.body || activeElement === document.documentElement) {
-          console.log('Focus checker: restoring keyboard focus');
-          if (focusCatcher) {
-            focusCatcher.focus();
-          } else if (gameContainer) {
-            gameContainer.focus();
-          }
-        }
-      }
-    }, 2000); // 每2秒檢查一次
-    
-    return () => clearInterval(focusChecker);
-  }, [viewState, isPaused, resumeCountdown]);
-
-  // 監控 showAnswer 狀態變化，自動恢復鍵盤焦點
-  useEffect(() => {
-    if (showAnswer) {
-      // 顯示答案時立即恢復鍵盤焦點
-      setTimeout(() => {
-        restoreKeyboardFocus('showAnswer state changed to true');
-        forceKeyboardListenerRebind('showAnswer state changed to true');
-      }, 100);
-    }
-  }, [showAnswer]);
-
-  // 創建隱藏的焦點捕獲元素
-  useEffect(() => {
-    // 創建一個隱藏的可聚焦元素作為焦點備用方案
-    const focusCatcher = document.createElement('input');
-    focusCatcher.id = 'keyboard-focus-catcher';
-    focusCatcher.style.position = 'absolute';
-    focusCatcher.style.left = '-9999px';
-    focusCatcher.style.top = '-9999px';
-    focusCatcher.style.opacity = '0';
-    focusCatcher.style.pointerEvents = 'none';
-    focusCatcher.setAttribute('tabindex', '0');
-    
-    // 添加到 body
-    document.body.appendChild(focusCatcher);
-    
-    // 清理函數
-    return () => {
-      const element = document.getElementById('keyboard-focus-catcher');
-      if (element) {
-        document.body.removeChild(element);
-      }
-    };
-  }, []);
-
-  // 強化的鍵盤焦點管理函數
-  const restoreKeyboardFocus = (reason = 'unknown') => {
-    // 立即嘗試恢復焦點
-    const immediateRestore = () => {
-      // 方法1: 嘗試聚焦到隱藏的焦點捕獲元素
-      const focusCatcher = document.getElementById('keyboard-focus-catcher');
-      if (focusCatcher) {
-        focusCatcher.focus();
-        console.log(`Keyboard focus restored to focus catcher: ${reason}`);
-        return true;
-      }
-      
-      // 方法2: 嘗試聚焦到遊戲容器
-      const gameContainer = document.querySelector('.min-h-screen[tabindex="0"]');
-      if (gameContainer) {
-        gameContainer.focus();
-        console.log(`Keyboard focus restored to game container: ${reason}`);
-        return true;
-      }
-      
-      // 方法3: 嘗試聚焦到 body
-      if (document.body) {
-        document.body.focus();
-        console.log(`Keyboard focus restored to body: ${reason}`);
-        return true;
-      }
-      
-      return false;
-    };
-    
-    // 立即嘗試一次
-    if (immediateRestore()) {
-      return;
-    }
-    
-    // 如果立即嘗試失敗，延遲嘗試
-    setTimeout(() => {
-      if (!immediateRestore()) {
-        // 最後的備用方案
-        window.focus();
-        console.log(`Keyboard focus restored to window (fallback): ${reason}`);
-      }
-    }, 50);
-    
-    // 額外的保險措施：再次嘗試
-    setTimeout(() => {
-      immediateRestore();
-    }, 200);
-  };
-
-  // 強制重新綁定鍵盤事件監聽器
-  const forceKeyboardListenerRebind = (reason = 'unknown') => {
-    setTimeout(() => {
-      // 觸發一個自定義事件來強制重新綁定鍵盤監聽器
-      const rebindEvent = new CustomEvent('forceKeyboardRebind', { 
-        detail: { reason } 
-      });
-      window.dispatchEvent(rebindEvent);
-      console.log(`Forced keyboard listener rebind: ${reason}`);
-    }, 50);
   };
 
   const togglePause = () => {
@@ -2429,10 +2300,6 @@ const CompetitiveMode = ({ onBack }) => {
     if (socket && roomCode && canSkip) {
       playSound('skipButton');
       socket.emit('skip_round', { roomCode });
-      
-      // 多重保險措施確保鍵盤輸入恢復
-      restoreKeyboardFocus('skip round');
-      forceKeyboardListenerRebind('skip round');
     }
   };
 
@@ -2440,10 +2307,6 @@ const CompetitiveMode = ({ onBack }) => {
     if (socket && roomCode) {
       playSound('buttonClick');
       socket.emit('get_current_answer', { roomCode });
-      
-      // 多重保險措施確保鍵盤輸入恢復
-      restoreKeyboardFocus('get answer');
-      forceKeyboardListenerRebind('get answer');
     }
   };
 
@@ -2451,20 +2314,13 @@ const CompetitiveMode = ({ onBack }) => {
     playSound('buttonCancel');
     setShowAnswer(false);
     setCurrentAnswer('');
-    
-    // 多重保險措施確保鍵盤輸入恢復
-    restoreKeyboardFocus('hide answer');
-    forceKeyboardListenerRebind('hide answer');
   };
 
   const handleKeyPress = (key) => {
     console.log('handleKeyPress called with key:', key);
-    console.log('Current state:', {viewState, roundWinner, showResultModal, isPaused, resumeCountdown, showAnswer});
+    console.log('Current state:', {viewState, roundWinner, showResultModal, isPaused, resumeCountdown});
     
-    // 特殊處理：如果只是顯示答案，不應該阻塞鍵盤輸入
-    const isOnlyShowingAnswer = showAnswer && !showResultModal && !roundWinner && !isPaused && resumeCountdown === 0;
-    
-    if (viewState !== 'playing' || (!isOnlyShowingAnswer && (roundWinner || showResultModal || isPaused || resumeCountdown > 0))) {
+    if (viewState !== 'playing' || roundWinner || showResultModal || isPaused || resumeCountdown > 0) {
       console.log('handleKeyPress blocked by conditions');
       return;
     }
@@ -2525,26 +2381,8 @@ const CompetitiveMode = ({ onBack }) => {
       else if (e.key === 'Backspace') handleKeyPress('BACKSPACE');
       else if (/^[a-zA-Z]$/.test(e.key)) handleKeyPress(e.key.toUpperCase());
     };
-    
-    // 強制重新綁定事件處理器
-    const handleForceRebind = (e) => {
-      console.log('Force rebind triggered:', e.detail?.reason);
-      // 移除舊的監聽器
-      window.removeEventListener('keydown', handleKeyDown);
-      // 重新添加監聽器
-      setTimeout(() => {
-        window.addEventListener('keydown', handleKeyDown);
-        console.log('Keyboard listener rebound');
-      }, 10);
-    };
-    
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('forceKeyboardRebind', handleForceRebind);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('forceKeyboardRebind', handleForceRebind);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewState, currentGuess, roundWinner, roomCode, isPaused, resumeCountdown]);
 
   // UI 
@@ -2730,11 +2568,7 @@ const CompetitiveMode = ({ onBack }) => {
       const keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'], ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'], ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']];
 
       return (
-        <div 
-          className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in"
-          tabIndex={0}
-          onFocus={() => console.log('Game container focused')}
-        >
+        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center py-4 px-2 animate-fade-in">
           
           <div className="flex gap-6 w-full max-w-6xl">
             {/* Center: Main game area */}
@@ -2810,16 +2644,7 @@ const CompetitiveMode = ({ onBack }) => {
 
               {/* Answer display area */}
               {showAnswer && currentAnswer && (
-                <div 
-                  className="mb-4 p-4 bg-purple-900 pixel-border text-center animate-modal-slide-in cursor-pointer" 
-                  style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}
-                  onClick={() => {
-                    // 點擊答案區域時強制恢復鍵盤焦點
-                    restoreKeyboardFocus('answer area clicked');
-                    forceKeyboardListenerRebind('answer area clicked');
-                  }}
-                  title="Click to ensure keyboard input works"
-                >
+                <div className="mb-4 p-4 bg-purple-900 pixel-border text-center animate-modal-slide-in" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
                   <div className="text-xs text-purple-300 mb-2 font-bold no-select">CURRENT ANSWER</div>
                   <div className="flex justify-center gap-1">
                     {currentAnswer.split('').map((letter, index) => (
