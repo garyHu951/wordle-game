@@ -1686,7 +1686,7 @@ const CompetitiveMode = ({ onBack }) => {
   const [pauseRequested, setPauseRequested] = useState(false);
   const [resumeRequested, setResumeRequested] = useState(false);
   const [resumeCountdown, setResumeCountdown] = useState(0);
-  const [skipAnswerModal, setSkipAnswerModal] = useState({ show: false, answer: '', round: 0 });
+  const [skipAnswerModal, setSkipAnswerModal] = useState({ show: false, answer: '', round: 0, playerName: '' });
 
   // Scoreboard
   const [guesses, setGuesses] = useState([]);
@@ -1757,10 +1757,10 @@ const CompetitiveMode = ({ onBack }) => {
       });
 
       // Add new socket event handlers for pause/resume and skip answer
-      newSocket.on('round_skipped_answer', ({ answer, round }) => {
-        setSkipAnswerModal({ show: true, answer, round });
+      newSocket.on('round_skipped_answer', ({ answer, round, playerName }) => {
+        setSkipAnswerModal({ show: true, answer, round, playerName });
         setTimeout(() => {
-          setSkipAnswerModal({ show: false, answer: '', round: 0 });
+          setSkipAnswerModal({ show: false, answer: '', round: 0, playerName: '' });
         }, 2000);
       });
 
@@ -2302,15 +2302,19 @@ const CompetitiveMode = ({ onBack }) => {
 
   // Add pause/resume handlers
   const handlePause = () => {
-    if (socket && !isPaused) {
+    console.log('Pause button clicked, isPaused:', isPaused, 'socket:', !!socket, 'roomCode:', roomCode);
+    if (socket && !isPaused && roomCode) {
       playSound('buttonClick');
+      console.log('Emitting pause_game event');
       socket.emit('pause_game', { roomCode });
     }
   };
 
   const handleResume = () => {
-    if (socket && isPaused) {
+    console.log('Resume button clicked, isPaused:', isPaused, 'socket:', !!socket, 'roomCode:', roomCode);
+    if (socket && isPaused && roomCode) {
       playSound('buttonClick');
+      console.log('Emitting resume_game event');
       socket.emit('resume_game', { roomCode });
     }
   };
@@ -2688,7 +2692,8 @@ const CompetitiveMode = ({ onBack }) => {
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
               <div className="bg-gray-900 p-8 pixel-border text-center text-white animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
                 <div className="text-4xl mb-4">📝</div>
-                <h2 className="text-xl font-bold text-blue-400 mb-2">ROUND {skipAnswerModal.round} ANSWER</h2>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">{skipAnswerModal.playerName} SKIPPED ROUND {skipAnswerModal.round}</h2>
+                <div className="text-lg text-gray-300 mb-2">Answer was:</div>
                 <div className="text-3xl font-bold text-yellow-400 mb-4 tracking-wider">{skipAnswerModal.answer}</div>
                 <p className="text-gray-300 text-xs">Starting next round...</p>
               </div>
