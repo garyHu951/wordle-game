@@ -337,9 +337,9 @@ io.on('connection', (socket) => {
     const currentRound = room.playerRounds[socket.id] || 1;
     const currentAnswer = room.roundWords[currentRound];
     
-    // 向房間內所有玩家廣播答案
+    // 只向跳過回合的玩家顯示答案，不廣播給其他玩家
     if (currentAnswer) {
-      io.to(roomCode).emit('round_skipped_answer', {
+      socket.emit('round_skipped_answer', {
         answer: currentAnswer,
         round: currentRound,
         playerName: `Player ${socket.id === Object.keys(room.players)[0] ? '1' : '2'}`
