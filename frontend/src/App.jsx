@@ -1323,6 +1323,31 @@ const SinglePlayerGame = ({ onBack }) => {
       try {
         const response = await fetch(`${API_URL}/game/${gameId}/guess`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guess: currentGuess }), });
         const data = await response.json();
+        
+        // 檢查不雅詞彙檢測
+        if (data.profanityDetected) {
+          alert(data.message);
+          // 開啟新頁面播放 RickRoll
+          window.open(data.url, '_blank');
+          // 強制結束遊戲
+          setGameOver(true);
+          setMessage(data.message);
+          setLoading(false);
+          return;
+        }
+        
+        // 檢查特殊詞彙檢測 (rickrol)
+        if (data.specialWordDetected) {
+          alert(data.message);
+          // 開啟新頁面播放特殊 RickRoll
+          window.open(data.url, '_blank');
+          // 暫停遊戲
+          setIsPaused(true);
+          setMessage(data.message);
+          setLoading(false);
+          return;
+        }
+        
         if (data.success) { 
           const newGuesses = data.guesses;
           const latestGuess = newGuesses[newGuesses.length - 1];
@@ -1859,6 +1884,34 @@ const CompetitiveMode = ({ onBack }) => {
         setPotentialPoints(hint.currentPoints);
       });
 
+      // 處理不雅詞彙檢測
+      newSocket.on('profanity_detected', ({ message, url, title }) => {
+        alert(message);
+        // 開啟新頁面播放 RickRoll
+        window.open(url, '_blank');
+        // 返回主頁
+        setTimeout(() => {
+          resetGameState();
+          onBack();
+        }, 1000);
+      });
+
+      // 處理對手被踢出
+      newSocket.on('opponent_kicked', ({ message }) => {
+        setErrorMessage(message);
+        setTimeout(() => {
+          resetGameState();
+          onBack();
+        }, 3000);
+      });
+
+      // 處理特殊詞彙檢測 (rickrol)
+      newSocket.on('special_word_detected', ({ message, url, title }) => {
+        alert(message);
+        // 開啟新頁面播放特殊 RickRoll
+        window.open(url, '_blank');
+      });
+
       newSocket.on('guess_result', ({ guess, result, isCorrect, gameOver }) => {
         // Play single cell sound effect based on word result priority
         setTimeout(() => {
@@ -2147,6 +2200,34 @@ const CompetitiveMode = ({ onBack }) => {
     newSocket.on('hint_reveal', (hint) => {
       setHints(prev => [...prev, hint]);
       setPotentialPoints(hint.currentPoints);
+    });
+
+    // 處理不雅詞彙檢測
+    newSocket.on('profanity_detected', ({ message, url, title }) => {
+      alert(message);
+      // 開啟新頁面播放 RickRoll
+      window.open(url, '_blank');
+      // 返回主頁
+      setTimeout(() => {
+        resetGameState();
+        onBack();
+      }, 1000);
+    });
+
+    // 處理對手被踢出
+    newSocket.on('opponent_kicked', ({ message }) => {
+      setErrorMessage(message);
+      setTimeout(() => {
+        resetGameState();
+        onBack();
+      }, 3000);
+    });
+
+    // 處理特殊詞彙檢測 (rickrol)
+    newSocket.on('special_word_detected', ({ message, url, title }) => {
+      alert(message);
+      // 開啟新頁面播放特殊 RickRoll
+      window.open(url, '_blank');
     });
 
     newSocket.on('guess_result', ({ guess, result, isCorrect, gameOver }) => {

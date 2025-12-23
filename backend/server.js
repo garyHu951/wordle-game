@@ -8,6 +8,9 @@ const http = require('http');
 const { Server } = require("socket.io");
 require('dotenv').config();
 
+// 導入不雅詞彙過濾器
+const profanityFilter = JSON.parse(fs.readFileSync(path.join(__dirname, 'profanity-filter.json'), 'utf8'));
+
 const app = express();
 
 // Environment variables
@@ -239,6 +242,50 @@ io.on('connection', (socket) => {
     
     // 檢查長度
     if (normalizedGuess.length !== room.wordLength) return;
+    
+    // 檢查不雅詞彙和特殊詞彙
+    const contentCheck = checkWordContent(normalizedGuess, room.wordLength);
+    if (contentCheck) {
+      if (contentCheck.type === 'profanity') {
+        // 不雅詞彙：強制結束對戰並開啟 RickRoll
+        socket.emit('profanity_detected', {
+          message: 'Inappropriate language detected. Game terminated.',
+          url: contentCheck.url,
+          title: contentCheck.title
+        });
+        
+        // 通知房間內其他玩家
+        socket.to(roomCode).emit('opponent_kicked', {
+          message: 'Your opponent was removed for inappropriate language.'
+        });
+        
+        // 從房間移除該玩家
+        if (room.players[socket.id]) {
+          delete room.players[socket.id];
+          delete room.playerRounds[socket.id];
+          delete room.playerGuessCount[socket.id];
+        }
+        
+        return;
+      } else if (contentCheck.type === 'special') {
+        // 特殊詞彙 (rickrol)：暫停遊戲並開啟特殊 RickRoll
+        socket.emit('special_word_detected', {
+          message: 'Special word detected! Game paused.',
+          url: contentCheck.url,
+          title: contentCheck.title
+        });
+        
+        // 暫停遊戲
+        room.isPaused = true;
+        io.to(roomCode).emit('game_paused', {
+          message: 'Game paused due to special word detection',
+          pausedBy: 'System'
+        });
+        
+        return;
+      }
+    }
+    
     if (!VALID_WORDS.has(normalizedGuess)) {
        socket.emit('guess_error', 'Word not in dictionary');
        return;
@@ -421,6 +468,39 @@ io.on('connection', (socket) => {
 // 單人模式的 API 保持不變 (為了不讓 server.js 太長，這裡省略 checkGuess 等函式宣告，
 // 請確保你把剛剛 checkGuess, generateGameId, VALID_WORDS 等邏輯都包含在內)
 // 注意：上面的代碼已經包含了 VALID_WORDS 的生成。
+
+// 不雅詞彙和特殊詞彙檢查函數
+function checkWordContent(word, wordLength) {
+    const normalizedWord = word.toLowerCase().trim();
+    
+    // 檢查不雅詞彙
+    const isProfane = profanityFilter.profanityWords.some(profaneWord => 
+        normalizedWord.includes(profaneWord.toLowerCase())
+    );
+    
+    if (isProfane) {
+        return {
+            type: 'profanity',
+            action: 'kick',
+            url: 'https://youtu.be/oHg5SJYRHA0?si=kf8gQw4ML-5qaTV_',
+            title: 'RickRoll\'D'
+        };
+    }
+    
+    // 檢查特殊詞彙 (rickrol)
+    const specialWord = profanityFilter.specialWords[normalizedWord];
+    if (specialWord && wordLength === specialWord.lengthRequired) {
+        return {
+            type: 'special',
+            action: 'rickroll',
+            url: specialWord.url,
+            title: specialWord.title
+        };
+    }
+    
+    return null; // 沒有問題
+}
+
 // 這裡補充 checkGuess (給單人與多人共用)
 function checkGuess(guess, answer) {
     const result = [];
@@ -508,8 +588,35 @@ app.post('/api/game/:id/guess', (req, res) => {
         const { id } = req.params; const { guess } = req.body;
         const game = singlePlayerGames.get(id);
         if(!game) return res.status(404).json({error: 'Not found'});
-        // ... 邏輯同前 ...
+        
         const normalizedGuess = guess.toUpperCase().trim();
+        
+        // 檢查不雅詞彙和特殊詞彙
+        const contentCheck = checkWordContent(normalizedGuess, game.wordLength);
+        if (contentCheck) {
+            if (contentCheck.type === 'profanity') {
+                // 不雅詞彙：強制結束遊戲並開啟 RickRoll
+                return res.json({
+                    success: false,
+                    profanityDetected: true,
+                    message: 'Inappropriate language detected. Game terminated.',
+                    url: contentCheck.url,
+                    title: contentCheck.title,
+                    gameOver: true
+                });
+            } else if (contentCheck.type === 'special') {
+                // 特殊詞彙 (rickrol)：暫停遊戲並開啟特殊 RickRoll
+                return res.json({
+                    success: false,
+                    specialWordDetected: true,
+                    message: 'Special word detected! Game paused.',
+                    url: contentCheck.url,
+                    title: contentCheck.title,
+                    gamePaused: true
+                });
+            }
+        }
+        
         if (!VALID_WORDS.has(normalizedGuess)) return res.status(400).json({success: false, error: 'Not in word list!'});
         const result = checkGuess(normalizedGuess, game.answer);
         game.guesses.push({word: normalizedGuess, result});
