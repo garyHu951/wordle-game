@@ -1667,7 +1667,7 @@ const SinglePlayerGame = ({ onBack }) => {
               className={`pixel-button flex-1 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-400 cursor-pointer ${gameOver ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
             >
-              {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
+              ⏸️ PAUSE
             </button>
             {gameId && (
               <button 
@@ -2669,7 +2669,7 @@ const CompetitiveMode = ({ onBack }) => {
                       className={`pixel-button px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
                       style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
                     >
-                      {isPaused ? 'RESUME' : 'PAUSE'}
+                      PAUSE
                     </button>
                     {canSkip && (
                       <button 
