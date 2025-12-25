@@ -1235,8 +1235,8 @@ const HomePage = ({ onSelectMode }) => {
           
           {/* 期末報告下載 */}
           <a 
-            href="/wordle-game/Group25_Final_Project_Report-01157123+01257004.pdf" 
-            download="Group25_Final_Project_Report-01157123+01257004.pdf"
+            href="./Group25_Final_Project_Report-01157123+01257004.pdf" 
+            download="(第25組) 期末專案成果-01157123+01257004.pdf"
             className="pixel-button block p-2 bg-red-600 hover:bg-red-500 text-white pixel-border transition-smooth hover-scale cursor-pointer text-center"
             style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
           >
