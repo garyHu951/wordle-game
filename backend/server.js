@@ -325,8 +325,14 @@ io.on('connection', (socket) => {
     });
     
     if (isCorrect) {
-      // 答對了！
-      const points = 5; // 固定5分
+      // 檢查玩家是否查看了答案
+      const currentRound = room.playerRounds[socket.id] || 1;
+      const hasViewedAnswer = room.playersViewedAnswer && 
+                             room.playersViewedAnswer[currentRound] && 
+                             room.playersViewedAnswer[currentRound][socket.id];
+      
+      // 如果查看了答案，得分為0；否則得5分
+      const points = hasViewedAnswer ? 0 : 5;
       room.players[socket.id].score += points;
       
       // 通知對手
@@ -335,7 +341,8 @@ io.on('connection', (socket) => {
         io.to(opponentId).emit('opponent_won_round', {
           opponentName: 'Opponent',
           word: roundWord,
-          points: points
+          points: points,
+          viewedAnswer: hasViewedAnswer // 告知對手該玩家是否查看了答案
         });
       }
       
@@ -344,8 +351,15 @@ io.on('connection', (socket) => {
         winnerId: socket.id,
         word: roundWord,
         points: points,
-        updatedPlayers: room.players
+        updatedPlayers: room.players,
+        viewedAnswer: hasViewedAnswer // 告知所有人該玩家是否查看了答案
       });
+      
+      if (hasViewedAnswer) {
+        console.log(`Player ${socket.id} won round ${currentRound} but got 0 points for viewing answer`);
+      } else {
+        console.log(`Player ${socket.id} won round ${currentRound} and got ${points} points`);
+      }
       
       // 1秒後為該玩家開始下一回合
       setTimeout(() => startRoundForPlayer(roomCode, socket.id), 1000);
@@ -364,9 +378,21 @@ io.on('connection', (socket) => {
       const roundWord = room.roundWords[currentRound];
       
       if (roundWord) {
+        // 標記玩家已查看答案，該回合得分將為0
+        if (!room.playersViewedAnswer) {
+          room.playersViewedAnswer = {};
+        }
+        if (!room.playersViewedAnswer[currentRound]) {
+          room.playersViewedAnswer[currentRound] = {};
+        }
+        room.playersViewedAnswer[currentRound][socket.id] = true;
+        
         socket.emit('current_answer', {
-          answer: roundWord
+          answer: roundWord,
+          scoreWarning: true // 提示玩家該回合得分將為0
         });
+        
+        console.log(`Player ${socket.id} viewed answer for round ${currentRound}, score will be 0`);
       } else {
         socket.emit('error_message', 'Cannot get answer: Round not started');
       }

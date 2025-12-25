@@ -2018,14 +2018,21 @@ const CompetitiveMode = ({ onBack }) => {
       });
 
       // Add: Opponent won notification
-      newSocket.on('opponent_won_round', ({ opponentName, word, points }) => {
-        setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)`);
+      newSocket.on('opponent_won_round', ({ opponentName, word, points, viewedAnswer }) => {
+        const answerInfo = viewedAnswer ? ' (查看答案，0分)' : '';
+        setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)${answerInfo}`);
         setTimeout(() => setErrorMessage(''), 3000);
       });
 
       newSocket.on('round_winner', (data) => {
         // Only update scores, don't affect current player's game flow
         setPlayers(data.updatedPlayers);
+        
+        // 如果獲勝者查看了答案，顯示相關信息
+        if (data.viewedAnswer && data.winnerId === newSocket.id) {
+          setMessage('🏆 回合勝利！但因查看答案得分為0');
+          setTimeout(() => setMessage(''), 3000);
+        }
         
         // Check if anyone reached 30 points
         const myScore = data.updatedPlayers[newSocket.id]?.score || 0;
@@ -2055,9 +2062,15 @@ const CompetitiveMode = ({ onBack }) => {
           setErrorMessage(msg);
       });
 
-      newSocket.on('current_answer', ({ answer }) => {
+      newSocket.on('current_answer', ({ answer, scoreWarning }) => {
         setCurrentAnswer(answer);
         setShowAnswer(true);
+        
+        // 如果有得分警告，顯示提示信息
+        if (scoreWarning) {
+          setMessage('⚠️ 查看答案後該回合得分為0分！');
+          setTimeout(() => setMessage(''), 3000);
+        }
       });
 
       return newSocket;
@@ -2330,14 +2343,21 @@ const CompetitiveMode = ({ onBack }) => {
     });
 
     // Add: Opponent won notification
-    newSocket.on('opponent_won_round', ({ opponentName, word, points }) => {
-      setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)`);
+    newSocket.on('opponent_won_round', ({ opponentName, word, points, viewedAnswer }) => {
+      const answerInfo = viewedAnswer ? ' (查看答案，0分)' : '';
+      setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)${answerInfo}`);
       setTimeout(() => setErrorMessage(''), 3000);
     });
 
     newSocket.on('round_winner', (data) => {
       // Only update scores, don't affect current player's game flow
       setPlayers(data.updatedPlayers);
+      
+      // 如果獲勝者查看了答案，顯示相關信息
+      if (data.viewedAnswer && data.winnerId === socket.id) {
+        setMessage('🏆 回合勝利！但因查看答案得分為0');
+        setTimeout(() => setMessage(''), 3000);
+      }
       
       // Check if anyone reached 30 points
       const myScore = data.updatedPlayers[newSocket.id]?.score || 0;
@@ -2367,9 +2387,15 @@ const CompetitiveMode = ({ onBack }) => {
       setErrorMessage(msg);
     });
 
-    newSocket.on('current_answer', ({ answer }) => {
+    newSocket.on('current_answer', ({ answer, scoreWarning }) => {
       setCurrentAnswer(answer);
       setShowAnswer(true);
+      
+      // 如果有得分警告，顯示提示信息
+      if (scoreWarning) {
+        setMessage('⚠️ 查看答案後該回合得分為0分！');
+        setTimeout(() => setMessage(''), 3000);
+      }
     });
   };
 
