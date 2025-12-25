@@ -1675,7 +1675,7 @@ const SinglePlayerGame = ({ onBack }) => {
                 className={`pixel-button flex-1 py-3 ${showAnswer ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'} text-white font-bold flex items-center justify-center gap-2 pixel-border transition-smooth hover-lift animate-slide-up animate-delay-450 cursor-pointer`}
                 style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
               >
-                {showAnswer ? '🙈 HIDE ANSWER' : '👀 SHOW ANSWER'}
+                {showAnswer ? '🙈 HIDE ANSWER' : '👁️ SHOW ANSWER'}
               </button>
             )}
             {/* 調試信息 - 臨時添加 */}
