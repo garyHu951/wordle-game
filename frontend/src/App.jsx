@@ -2706,13 +2706,20 @@ const CompetitiveMode = ({ onBack }) => {
                         SKIP ROUND
                       </button>
                     )}
-                    <button 
-                      onClick={showAnswer ? hideAnswer : getAnswer}
-                      className={`pixel-button px-4 py-2 ${showAnswer ? 'bg-orange-600 hover:bg-orange-500' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
-                      style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
-                    >
-                      {showAnswer ? 'HIDE ANSWER' : 'SHOW ANSWER'}
-                    </button>
+                    <div className="flex flex-col items-center">
+                      <button 
+                        onClick={showAnswer ? hideAnswer : getAnswer}
+                        className={`pixel-button px-4 py-2 ${showAnswer ? 'bg-orange-600 hover:bg-orange-500' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
+                        style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                      >
+                        {showAnswer ? 'HIDE ANSWER' : 'SHOW ANSWER'}
+                      </button>
+                      {!showAnswer && (
+                        <div className="text-xs text-red-400 mt-1 text-center animate-pulse">
+                          ⚠️ 查看答案該回合得分為0分
+                        </div>
+                      )}
+                    </div>
                   </div>
               </div>
 
@@ -2768,6 +2775,9 @@ const CompetitiveMode = ({ onBack }) => {
                     ))}
                   </div>
                   <div className="text-xs text-purple-300 mt-2 no-select">This is your target word for this round</div>
+                  <div className="text-xs text-red-400 mt-2 font-bold animate-pulse no-select">
+                    ⚠️ 該回合得分為0分（已查看答案）
+                  </div>
                 </div>
               )}
 
