@@ -413,6 +413,144 @@ const ensureAnimationStyles = () => {
 ensureAnimationStyles();
 
 // ==========================================
+// 0. Game Instructions Modal - Pixel Style
+// ==========================================
+const GameInstructionsModal = ({ isOpen, onClose }) => {
+  const { playSound } = useAudio();
+
+  const handleClose = () => {
+    playSound('buttonCancel');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-gray-900 pixel-border text-white max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-slide-in" style={{ boxShadow: '8px 8px 0 rgba(0,0,0,0.8)' }}>
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl text-yellow-400 font-bold no-select">GAME INSTRUCTIONS</h2>
+            <button 
+              onClick={handleClose}
+              className="pixel-button p-2 bg-red-600 hover:bg-red-500 pixel-border text-white transition-smooth hover-scale cursor-pointer"
+              style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-6 text-sm">
+            {/* How to Play */}
+            <div className="bg-gray-800 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}>
+              <h3 className="text-green-400 font-bold mb-3 no-select">HOW TO PLAY</h3>
+              <ul className="space-y-2 text-gray-300">
+                <li>• GUESS THE WORDLE IN 6 TRIES</li>
+                <li>• EACH GUESS MUST BE A VALID WORD</li>
+                <li>• PRESS ENTER TO SUBMIT YOUR GUESS</li>
+                <li>• COLORS WILL SHOW HOW CLOSE YOUR GUESS WAS</li>
+              </ul>
+            </div>
+
+            {/* Color Guide */}
+            <div className="bg-gray-800 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}>
+              <h3 className="text-green-400 font-bold mb-3 no-select">COLOR GUIDE</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-600 pixel-border flex items-center justify-center text-white font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>W</div>
+                  <span className="text-gray-300">GREEN = CORRECT LETTER IN CORRECT POSITION</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-yellow-600 pixel-border flex items-center justify-center text-white font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>O</div>
+                  <span className="text-gray-300">YELLOW = CORRECT LETTER IN WRONG POSITION</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-600 pixel-border flex items-center justify-center text-white font-bold" style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}>R</div>
+                  <span className="text-gray-300">GRAY = LETTER NOT IN THE WORD</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Game Modes */}
+            <div className="bg-gray-800 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}>
+              <h3 className="text-green-400 font-bold mb-3 no-select">GAME MODES</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <User size={16} className="text-blue-400" />
+                    <span className="text-blue-400 font-bold">SINGLE PLAYER</span>
+                  </div>
+                  <p className="text-gray-300 text-xs ml-6">CLASSIC WORDLE EXPERIENCE WITH 4-7 LETTER WORDS</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Swords size={16} className="text-red-400" />
+                    <span className="text-red-400 font-bold">COMPETITIVE</span>
+                  </div>
+                  <p className="text-gray-300 text-xs ml-6">RACE AGAINST OTHER PLAYERS • FIRST TO 30 POINTS WINS</p>
+                  <p className="text-gray-300 text-xs ml-6">+5 POINTS PER ROUND WIN • 0 POINTS IF YOU VIEW ANSWER</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="bg-gray-800 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}>
+              <h3 className="text-green-400 font-bold mb-3 no-select">CONTROLS</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-yellow-400 font-bold">KEYBOARD:</span>
+                  <ul className="text-gray-300 mt-1 space-y-1">
+                    <li>• TYPE LETTERS TO GUESS</li>
+                    <li>• ENTER = SUBMIT GUESS</li>
+                    <li>• BACKSPACE = DELETE LETTER</li>
+                  </ul>
+                </div>
+                <div>
+                  <span className="text-yellow-400 font-bold">BUTTONS:</span>
+                  <ul className="text-gray-300 mt-1 space-y-1">
+                    <li>• SHOW ANSWER = VIEW CURRENT WORD</li>
+                    <li>• PAUSE = PAUSE GAME (SINGLE PLAYER)</li>
+                    <li>• SKIP = SKIP ROUND (COMPETITIVE)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="bg-gray-800 p-4 pixel-border" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}>
+              <h3 className="text-green-400 font-bold mb-3 no-select">TIPS & STRATEGIES</h3>
+              <ul className="space-y-2 text-gray-300 text-xs">
+                <li>• START WITH WORDS CONTAINING COMMON VOWELS (A, E, I, O, U)</li>
+                <li>• USE COMMON CONSONANTS LIKE R, S, T, L, N</li>
+                <li>• PAY ATTENTION TO LETTER FREQUENCY IN ENGLISH</li>
+                <li>• ELIMINATE LETTERS SYSTEMATICALLY</li>
+                <li>• IN COMPETITIVE MODE: SPEED MATTERS, BUT ACCURACY IS KEY</li>
+                <li>• VIEWING ANSWERS GIVES 0 POINTS - USE WISELY!</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 pt-4 border-t-2 border-gray-700 text-center">
+            <button 
+              onClick={handleClose}
+              className="pixel-button px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold pixel-border transition-smooth hover-scale cursor-pointer"
+              style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.6)' }}
+            >
+              GOT IT!
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
 // 0. Word List Component - Pixel Style
 // ==========================================
 // Search Component - Optimized for performance
@@ -899,6 +1037,7 @@ const WordListSidebar = ({ isOpen, onClose, selectedLength, onLengthChange }) =>
 // ==========================================
 const HomePage = ({ onSelectMode }) => {
   const [showWordList, setShowWordList] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [selectedLength, setSelectedLength] = useState(5);
   const { playSound, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
@@ -935,6 +1074,16 @@ const HomePage = ({ onSelectMode }) => {
   const handleWordListClose = () => {
     playSound('buttonCancel');
     setShowWordList(false);
+  };
+
+  const handleInstructionsToggle = () => {
+    playSound('buttonClick');
+    setShowInstructions(true);
+  };
+
+  const handleInstructionsClose = () => {
+    playSound('buttonCancel');
+    setShowInstructions(false);
   };
 
   const handleModeSelect = (mode) => {
@@ -1029,6 +1178,23 @@ const HomePage = ({ onSelectMode }) => {
         </div>
       </div>
       
+      {/* Right top corner game instructions button */}
+      <div className="fixed top-4 right-4 z-30 animate-slide-in-right animate-delay-300">
+        <button 
+          onClick={handleInstructionsToggle}
+          className="pixel-button p-3 bg-orange-600 hover:bg-orange-500 text-white pixel-border transition-smooth hover-scale cursor-pointer"
+          style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}
+          title="Game Instructions"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-xs font-bold">HELP</span>
+          </div>
+        </button>
+      </div>
+
       {/* Right bottom corner links */}
       <div className="fixed bottom-4 right-4 z-30 animate-slide-in-right animate-delay-500">
         <div className="bg-gray-800 p-4 pixel-border text-white text-xs space-y-2" style={{ boxShadow: '4px 4px 0 rgba(0,0,0,0.8)' }}>
@@ -1086,11 +1252,16 @@ const HomePage = ({ onSelectMode }) => {
         onLengthChange={setSelectedLength}
       />
       
+      <GameInstructionsModal 
+        isOpen={showInstructions}
+        onClose={handleInstructionsClose}
+      />
+      
       {/* Background overlay */}
-      {showWordList && (
+      {(showWordList || showInstructions) && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-500 animate-fade-in"
-          onClick={handleWordListClose}
+          onClick={showWordList ? handleWordListClose : handleInstructionsClose}
         />
       )}
     </div>
