@@ -513,7 +513,7 @@ const GameInstructionsModal = ({ isOpen, onClose }) => {
                   <span className="text-yellow-400 font-bold">BUTTONS:</span>
                   <ul className="text-gray-300 mt-1 space-y-1">
                     <li>• SHOW ANSWER = VIEW CURRENT WORD</li>
-                    <li>• PAUSE = PAUSE GAME (SINGLE PLAYER)</li>
+                    <li>• PAUSE = PAUSE GAME</li>
                     <li>• SKIP = SKIP ROUND (COMPETITIVE)</li>
                   </ul>
                 </div>
