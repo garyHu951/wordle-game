@@ -2019,7 +2019,7 @@ const CompetitiveMode = ({ onBack }) => {
 
       // Add: Opponent won notification
       newSocket.on('opponent_won_round', ({ opponentName, word, points, viewedAnswer }) => {
-        const answerInfo = viewedAnswer ? ' (查看答案，0分)' : '';
+        const answerInfo = viewedAnswer ? ' (ANSWER VIEWED, 0 PTS)' : '';
         setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)${answerInfo}`);
         setTimeout(() => setErrorMessage(''), 3000);
       });
@@ -2030,7 +2030,7 @@ const CompetitiveMode = ({ onBack }) => {
         
         // 如果獲勝者查看了答案，顯示相關信息
         if (data.viewedAnswer && data.winnerId === newSocket.id) {
-          setMessage('🏆 回合勝利！但因查看答案得分為0');
+          setMessage('🏆 ROUND WON! BUT 0 PTS (ANSWER VIEWED)');
           setTimeout(() => setMessage(''), 3000);
         }
         
@@ -2068,7 +2068,7 @@ const CompetitiveMode = ({ onBack }) => {
         
         // 如果有得分警告，顯示提示信息
         if (scoreWarning) {
-          setMessage('⚠️ 查看答案後該回合得分為0分！');
+          setMessage('⚠️ ANSWER VIEWED! ROUND SCORE: 0 PTS');
           setTimeout(() => setMessage(''), 3000);
         }
       });
@@ -2344,7 +2344,7 @@ const CompetitiveMode = ({ onBack }) => {
 
     // Add: Opponent won notification
     newSocket.on('opponent_won_round', ({ opponentName, word, points, viewedAnswer }) => {
-      const answerInfo = viewedAnswer ? ' (查看答案，0分)' : '';
+      const answerInfo = viewedAnswer ? ' (ANSWER VIEWED, 0 PTS)' : '';
       setErrorMessage(`🎉 OPPONENT WON! Answer: "${word}" (+${points} PTS)${answerInfo}`);
       setTimeout(() => setErrorMessage(''), 3000);
     });
@@ -2355,7 +2355,7 @@ const CompetitiveMode = ({ onBack }) => {
       
       // 如果獲勝者查看了答案，顯示相關信息
       if (data.viewedAnswer && data.winnerId === socket.id) {
-        setMessage('🏆 回合勝利！但因查看答案得分為0');
+        setMessage('🏆 ROUND WON! BUT 0 PTS (ANSWER VIEWED)');
         setTimeout(() => setMessage(''), 3000);
       }
       
@@ -2393,7 +2393,7 @@ const CompetitiveMode = ({ onBack }) => {
       
       // 如果有得分警告，顯示提示信息
       if (scoreWarning) {
-        setMessage('⚠️ 查看答案後該回合得分為0分！');
+        setMessage('⚠️ ANSWER VIEWED! ROUND SCORE: 0 PTS');
         setTimeout(() => setMessage(''), 3000);
       }
     });
@@ -2706,20 +2706,13 @@ const CompetitiveMode = ({ onBack }) => {
                         SKIP ROUND
                       </button>
                     )}
-                    <div className="flex flex-col items-center">
-                      <button 
-                        onClick={showAnswer ? hideAnswer : getAnswer}
-                        className={`pixel-button px-4 py-2 ${showAnswer ? 'bg-orange-600 hover:bg-orange-500' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
-                        style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
-                      >
-                        {showAnswer ? 'HIDE ANSWER' : 'SHOW ANSWER'}
-                      </button>
-                      {!showAnswer && (
-                        <div className="text-xs text-red-400 mt-1 text-center animate-pulse">
-                          ⚠️ 查看答案該回合得分為0分
-                        </div>
-                      )}
-                    </div>
+                    <button 
+                      onClick={showAnswer ? hideAnswer : getAnswer}
+                      className={`pixel-button px-4 py-2 ${showAnswer ? 'bg-orange-600 hover:bg-orange-500' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold transition-smooth pixel-border text-xs hover-scale cursor-pointer`}
+                      style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.6)' }}
+                    >
+                      {showAnswer ? 'HIDE ANSWER' : 'SHOW ANSWER'}
+                    </button>
                   </div>
               </div>
 
@@ -2776,7 +2769,7 @@ const CompetitiveMode = ({ onBack }) => {
                   </div>
                   <div className="text-xs text-purple-300 mt-2 no-select">This is your target word for this round</div>
                   <div className="text-xs text-red-400 mt-2 font-bold animate-pulse no-select">
-                    ⚠️ 該回合得分為0分（已查看答案）
+                    ⚠️ ROUND SCORE: 0 PTS (ANSWER VIEWED)
                   </div>
                 </div>
               )}
