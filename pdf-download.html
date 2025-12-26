@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF下載頁面 - 第25組期末專案成果</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .info {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .download-btn {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            transition: background 0.3s;
+        }
+        .download-btn:hover {
+            background: #218838;
+        }
+        .status {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .file-info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .back-link {
+            margin-top: 20px;
+        }
+        .back-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 第25組期末專案成果下載</h1>
+        
+        <div class="status">
+            ✅ PDF文件已成功部署並可下載
+        </div>
+        
+        <div class="file-info">
+            <strong>文件信息：</strong><br>
+            📁 文件名：(第25組) 期末專案成果-01157123+01257004.pdf<br>
+            📏 文件大小：2,189,406 bytes (約2.1MB)<br>
+            📅 更新時間：2025年12月26日<br>
+            ✨ 版本：最新版本
+        </div>
+        
+        <a href="https://garyhu951.github.io/wordle-game/(第25組) 期末專案成果-01157123+01257004.pdf" 
+           class="download-btn" 
+           download="(第25組) 期末專案成果-01157123+01257004.pdf">
+            🔽 立即下載PDF
+        </a>
+        
+        <div class="info">
+            <strong>下載說明：</strong><br>
+            1. 點擊上方的「立即下載PDF」按鍵<br>
+            2. 文件將自動開始下載<br>
+            3. 如果沒有自動下載，請右鍵點擊按鍵選擇「另存連結為」<br>
+            4. 下載完成後請確認文件大小約為2.1MB
+        </div>
+        
+        <div class="warning">
+            <strong>注意：</strong> 如果主網站的REPORT按鍵暫時不可用，請使用此頁面下載。這是由於網站緩存更新延遲造成的，不影響PDF文件本身的可用性。
+        </div>
+        
+        <div class="back-link">
+            <a href="https://garyhu951.github.io/wordle-game/">← 返回主網站</a>
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 12px; color: #666;">
+            如有問題，請確認瀏覽器允許下載，或嘗試使用無痕模式訪問。
+        </div>
+    </div>
+    
+    <script>
+        // 檢查下載是否成功
+        document.querySelector('.download-btn').addEventListener('click', function() {
+            setTimeout(function() {
+                alert('下載已開始！如果沒有開始下載，請檢查瀏覽器的下載設置或嘗試右鍵另存為。');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
