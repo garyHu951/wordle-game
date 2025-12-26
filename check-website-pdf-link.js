@@ -2,7 +2,7 @@
 const https = require('https');
 
 const SITE_URL = 'https://garyhu951.github.io/wordle-game/';
-const EXPECTED_PDF_NAME = '(第25組) 期末專案成果-01157123+01257004.pdf';
+const EXPECTED_PDF_NAME = '(第25組)期末專案成果-01157123+01257004.pdf';
 
 function checkWebsitePDFLink() {
   console.log('🔍 檢查網站PDF連結更新狀態...');
@@ -26,7 +26,7 @@ function checkWebsitePDFLink() {
       console.log('');
       
       // 檢查是否包含新的PDF連結
-      const newPdfPattern = /\(第25組\) 期末專案成果-01157123\+01257004\.pdf/g;
+      const newPdfPattern = /\(第25組\)期末專案成果-01157123\+01257004\.pdf/g;
       const oldPdfPattern1 = /第25組期末專案成果-01157123\+01257004\.pdf/g;
       const oldPdfPattern2 = /\(第25組\)期末專案成果-01157123\+01257004\.pdf/g;
       

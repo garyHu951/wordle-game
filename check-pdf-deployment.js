@@ -1,7 +1,7 @@
 // 檢查PDF文件部署狀態
 const https = require('https');
 
-const PDF_URL = 'https://garyhu951.github.io/wordle-game/(第25組) 期末專案成果-01157123+01257004.pdf';
+const PDF_URL = 'https://garyhu951.github.io/wordle-game/(第25組)期末專案成果-01157123+01257004.pdf';
 const SITE_URL = 'https://garyhu951.github.io/wordle-game/';
 
 function checkPDFFile() {
@@ -37,7 +37,7 @@ function checkPDFFile() {
       siteRes.on('end', () => {
         console.log('🔍 網站中的PDF連結檢查:');
         
-        const pdfLinkPattern = /\(第25組\) 期末專案成果-01157123\+01257004\.pdf/g;
+        const pdfLinkPattern = /\(第25組\)期末專案成果-01157123\+01257004\.pdf/g;
         const matches = data.match(pdfLinkPattern);
         
         if (matches && matches.length > 0) {
@@ -59,7 +59,7 @@ function checkPDFFile() {
         console.log('1. 訪問主頁面右下角的LINKS區域');
         console.log('2. 點擊📄 REPORT按鍵');
         console.log('3. 驗證PDF文件是否正確下載');
-        console.log('4. 檢查下載的文件名是否為: (第25組) 期末專案成果-01157123+01257004.pdf');
+        console.log('4. 檢查下載的文件名是否為: (第25組)期末專案成果-01157123+01257004.pdf');
       });
       
     }).on('error', (err) => {
